@@ -1,0 +1,9 @@
+bin
+obj
+.env
+.env.*
+.git
+tests
+artifacts
+TestResults
+README.md

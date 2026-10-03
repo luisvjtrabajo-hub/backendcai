@@ -11,10 +11,10 @@ public sealed class FilesModule : IActionHandler
         return await db.One("""
             SELECT json_build_object('id',id,'name',name,'contentType',content_type,
             'base64',replace(encode(content,'base64'),E'\n',''))::text
-            FROM files WHERE id=@id AND (owner_user_id=@user OR @admin)
+            FROM files WHERE id=@id AND (@admin OR (owner_user_id=@user AND purpose='CERTIFICATE'))
             """, ("id", r.Id()), ("user", actor!.Id), ("admin", actor.IsAdmin)) ?? throw ApiException.Missing();
     }
-    public static async Task<Guid> Store(ApiRequest r, Actor actor, IDatabase db, CancellationToken ct)
+    public static async Task<Guid> Store(ApiRequest r, Actor actor, IDatabase db, CancellationToken ct, string purpose = "CERTIFICATE")
     {
         var file = r.File ?? throw ApiException.Invalid("Adjunta un archivo en el campo file.");
         if (file.Length is <= 0 or > 5 * 1024 * 1024) throw ApiException.Invalid("El archivo debe pesar entre 1 byte y 5 MB.");
@@ -26,8 +26,8 @@ public sealed class FilesModule : IActionHandler
         var id = Guid.NewGuid();
         var name = Path.GetFileName(file.FileName.Replace('\\', '/'));
         if (string.IsNullOrWhiteSpace(name) || name.Length > 200 || name.Any(char.IsControl)) throw ApiException.Invalid("Nombre de archivo inválido.");
-        await db.Execute("INSERT INTO files(id,owner_user_id,name,content_type,content) VALUES(@id,@owner,@name,@type,@content)",
-            ("id", id), ("owner", actor.Id), ("name", name), ("type", type), ("content", content));
+        await db.Execute("INSERT INTO files(id,owner_user_id,name,content_type,content,purpose) VALUES(@id,@owner,@name,@type,@content,@purpose)",
+            ("id", id), ("owner", actor.Id), ("name", name), ("type", type), ("content", content), ("purpose",purpose));
         return id;
     }
     private static string Detect(byte[] b)

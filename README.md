@@ -49,7 +49,7 @@ docker compose up --build -d
 docker compose logs -f api
 ```
 
-La API escucha en `http://localhost:8080`. PostgreSQL queda en la red privada de Docker; sus datos usan el volumen `postgres-data`. El script SQL se ejecuta automáticamente al arrancar la API y puede repetirse. `docker compose down` detiene los contenedores y conserva el volumen.
+La API escucha en `http://localhost:8080`. PostgreSQL queda en la red privada de Docker; sus datos usan el volumen `postgres-data`. Los scripts SQL de `database/` se ejecutan en orden al arrancar la API y pueden repetirse. `docker compose down` detiene los contenedores y conserva el volumen.
 
 En la raíz del frontend:
 
@@ -110,16 +110,17 @@ Si más adelante publicas la carpeta exterior completa como un solo repositorio,
 
 ### Crear el esquema manualmente
 
-Script: [database/001_schema.sql](database/001_schema.sql).
+Scripts en orden: [database/001_schema.sql](database/001_schema.sql) y [database/002_mission_assignments.sql](database/002_mission_assignments.sql). El segundo añade asignaciones independientes y protege los archivos de evidencia. Si ya tenías el primer esquema, aplica el segundo; conserva las evidencias y asigna automáticamente sus misiones a los autores.
 
 Puedes ejecutarlo en DBeaver, pgAdmin o `psql`, conectado a la base de Render. Para conectar desde tu equipo, habilita temporalmente tu IP en la configuración de acceso de PostgreSQL y usa la **External Database URL**:
 
 ```powershell
 # DATABASE_URL debe contener la URL externa de tu base.
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_schema.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_mission_assignments.sql
 ```
 
-El script es transaccional, idempotente y no borra registros. No lleva `CREATE DATABASE`: Render provisiona la base previamente. Si prefieres ejecutar SQL manualmente, establece `Database__AutoMigrate=false` después de aplicar el script. Futuras modificaciones de esquema deben añadirse como migraciones nuevas; este primer script no es un motor de migraciones versionadas.
+Los scripts son transaccionales, idempotentes y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Si prefieres ejecutar SQL manualmente, establece `Database__AutoMigrate=false` después de aplicar ambos. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque los ejecuta en orden, sin llevar un historial de versiones.
 
 ## Conectar Vercel
 
@@ -136,10 +137,11 @@ El cliente usa siempre `POST /api`; `fetchApi(action, { data, file, signal })` e
 ## Archivos y reglas
 
 - Certificados y evidencias admiten JPG, PNG, WebP, GIF y PDF de hasta **5 MB**, comprobando la firma del formato. El máximo de la solicitud es 6 MB. No se admiten SVG, ejecutables ni video.
-- Los archivos se guardan en PostgreSQL (`bytea`) y se entregan con `files.get`, únicamente al propietario o administradores. No hace falta un disco persistente en Render. El contenido ocupa espacio en la base; para gran volumen conviene sustituir este almacenamiento por un bucket privado.
+- Los archivos se guardan en PostgreSQL (`bytea`). `files.get` entrega certificados al propietario o administradores y evidencias de misiones **solo a administradores**, incluso si el soldado fue quien las subió. No hace falta un disco persistente en Render. El contenido ocupa espacio en la base; para gran volumen conviene sustituir este almacenamiento por un bucket privado.
 - Un certificado solo puede consumirse una vez. La activación automática exige correo del titular coincidente; si no se registró correo, exige nombre coincidente. Los certificados sin titular requieren revisión manual.
 - Las cuentas nuevas quedan pendientes; el servidor controla roles y evita elevar permisos desde el registro.
-- Una evidencia por usuario/misión. Un rechazo permite reenviar; una aprobación no puede repetirse. Solo las aprobaciones suman peso y rango: RECRUTA 0–2, SOLDADO 3–9, CABO 10–19, SARGENTO 20+.
+- El soldado puede asignarse una misión sin subir un archivo. La tarjeta conserva su estado y ofrece subir la evidencia después. No muestra el botón de consultar evidencias ni permite obtenerlas por API.
+- Una evidencia por usuario/misión, con asignación previa. Un rechazo permite reenviar; una aprobación no puede repetirse. Solo las aprobaciones suman peso y rango: RECRUTA 0–2, SOLDADO 3–9, CABO 10–19, SARGENTO 20+.
 - Se respeta el rango mínimo de misiones. La versión actual usa `genderEligibility=ALL`, acorde al formulario actual, que no recoge género.
 - Los reportes pendientes son visibles al autor y administradores; los aprobados aparecen en el registro de usuarios activos.
 - Las revisiones de misiones y reportes están disponibles en la API documentada; el frontend actual no tiene todavía pantallas para esas dos revisiones.
@@ -162,7 +164,9 @@ $env:TEST_ADMIN_PASSWORD = 'EL_PASSWORD_ADMIN_DE_PRUEBAS'
 node scripts/smoke.mjs
 ```
 
-Cubre registro, login, CORS, autorización, errores, certificados, archivos, aprobación manual, borradores, publicaciones, reenvío de evidencias, revisión concurrente, rangos, privacidad de reportes, promoción a registrador, desactivación, logout y límite de intentos. Las pruebas persisten datos; usar una base aislada.
+Cubre registro, login, CORS, autorización, errores, certificados, archivos, aprobación manual, borradores, publicaciones, asignación sin archivo y persistencia de su estado, bloqueo de consulta de evidencias para soldados, reenvío de evidencias, revisión concurrente, rangos, privacidad de reportes, promoción a registrador, desactivación, logout y límite de intentos. Las pruebas persisten datos; usar una base aislada.
+
+Para comprobar la actualización desde el primer esquema, ejecutar `psql "$env:DATABASE_URL" -f scripts/migration-smoke.sql` únicamente sobre una base de pruebas vacía. Crea datos anteriores, aplica `002` dos veces y verifica que no se pierdan estados ni se dupliquen asignaciones.
 
 En una red sin acceso a NuGet, se puede compilar usando los paquetes ya disponibles y `-p:NuGetAudit=false --ignore-failed-sources`; eso **omite únicamente la consulta de vulnerabilidades durante esa verificación local**. El Dockerfile conserva la auditoría y el lockfile para el despliegue.
 

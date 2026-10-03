@@ -10,8 +10,11 @@ public static class Bootstrap
     {
         if (config.GetValue("Database:AutoMigrate", true))
         {
-            await using var cmd = source.CreateCommand(await File.ReadAllTextAsync(Path.Combine(contentRoot,"database","001_schema.sql"),ct));
-            await cmd.ExecuteNonQueryAsync(ct);
+            foreach (var file in Directory.GetFiles(Path.Combine(contentRoot,"database"),"*.sql").Order(StringComparer.Ordinal))
+            {
+                await using var cmd = source.CreateCommand(await File.ReadAllTextAsync(file,ct));
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
         }
         var email = config["Bootstrap:AdminEmail"];
         var password = config["Bootstrap:AdminPassword"];

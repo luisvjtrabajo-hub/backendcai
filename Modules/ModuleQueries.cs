@@ -7,11 +7,13 @@ internal static class ModuleQueries
 {
     // view/where solo proceden de constantes internas, nunca de valores del cliente.
     public static async Task<object> Page(IDatabase db, ApiRequest r, string view, string where = "TRUE", params (string Name, object? Value)[] args)
+        => await PageProjected(db,r,view,where,"v.*",args);
+    public static async Task<object> PageProjected(IDatabase db, ApiRequest r, string view, string where, string projection, params (string Name, object? Value)[] args)
     {
         var page = r.Number("page", 1, 1, 100000);
         var size = r.Number("pageSize", 50, 1, 100);
         var total = await db.Count($"SELECT count(*) FROM {view} WHERE {where}", args);
-        var items = await db.Many($"SELECT row_to_json(t)::text FROM (SELECT * FROM {view} WHERE {where} ORDER BY \"createdAt\" DESC,id LIMIT @size OFFSET @offset) t", [..args, ("size", size), ("offset", (page - 1) * size)]);
+        var items = await db.Many($"SELECT row_to_json(t)::text FROM (SELECT {projection} FROM {view} v WHERE {where} ORDER BY v.\"createdAt\" DESC,v.id LIMIT @size OFFSET @offset) t", [..args, ("size", size), ("offset", (page - 1) * size)]);
         return new { items, total, page, pageSize = size };
     }
     public static async Task<object> Get(IDatabase db, string view, Guid id) =>

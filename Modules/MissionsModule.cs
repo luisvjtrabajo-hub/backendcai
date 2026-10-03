@@ -5,21 +5,41 @@ namespace Cai.Api.Modules;
 
 public sealed class MissionsModule : IActionHandler
 {
-    public IReadOnlyCollection<string> Actions { get; } = ["missions.list", "missions.create", "missions.update", "missions.publish", "missions.archive", "submissions.create", "submissions.list", "submissions.review", "progress.get", "history.get"];
+    public IReadOnlyCollection<string> Actions { get; } = ["missions.list", "missions.assign", "assignments.list", "missions.create", "missions.update", "missions.publish", "missions.archive", "submissions.create", "submissions.list", "submissions.review", "progress.get", "history.get"];
     public async Task<object> Handle(ApiRequest r, Actor? actor, IDatabase db, CancellationToken ct)
     {
         var user = actor ?? throw ApiException.Forbidden();
         user.Active();
         if (r.Action == "missions.list")
-            return await ModuleQueries.Page(db, r, "api_missions", user.IsAdmin ? "TRUE" : "\"publicationState\"='PUBLISHED' AND CASE \"minimumRankCode\" WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END <= (SELECT CASE rank_code WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END FROM users WHERE id=@user)", user.IsAdmin ? [] : [("user",user.Id)]);
-        if (r.Action == "submissions.list")
+            return await ModuleQueries.PageProjected(db, r, "api_missions", user.IsAdmin ? "TRUE" : "\"publicationState\"='PUBLISHED' AND CASE \"minimumRankCode\" WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END <= (SELECT CASE rank_code WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END FROM users WHERE id=@user)",
+                "v.*, (SELECT json_build_object('id',a.id,'status',coalesce(s.status,'ASSIGNED')) FROM mission_assignments a LEFT JOIN mission_submissions s ON s.mission_id=a.mission_id AND s.user_id=a.user_id WHERE a.mission_id=v.id AND a.user_id=@user) AS \"myAssignment\"", ("user",user.Id));
+        if (r.Action == "assignments.list")
         {
-            var status = r.Optional("status",20);
-            if (status is not null && !new[] { "PENDING","APPROVED","REJECTED" }.Contains(status)) throw ApiException.Invalid("Estado inválido.");
             var where = user.IsAdmin ? "TRUE" : "\"userId\"=@user";
             var args = new List<(string,object?)>();
             if (!user.IsAdmin) args.Add(("user",user.Id));
+            if (r.Optional("missionId",36) is not null) { where += " AND \"missionId\"=@mission"; args.Add(("mission",r.Id("missionId"))); }
+            return await ModuleQueries.Page(db,r,"api_assignments",where,[..args]);
+        }
+        if (r.Action == "missions.assign")
+        {
+            var missionId = r.Id();
+            await Eligible(db,user,missionId);
+            if (r.File is not null) throw ApiException.Invalid("La asignación no necesita archivo. Súbelo después con submissions.create.");
+            var inserted = await db.Execute("INSERT INTO mission_assignments(mission_id,user_id) VALUES(@mission,@user) ON CONFLICT(mission_id,user_id) DO NOTHING",("mission",missionId),("user",user.Id));
+            var assignment = await db.One("SELECT row_to_json(a)::text FROM api_assignments a WHERE \"missionId\"=@mission AND \"userId\"=@user",("mission",missionId),("user",user.Id)) ?? throw ApiException.Missing();
+            if (inserted > 0) await ModuleQueries.Audit(db,user,r.Action,assignment.GetProperty("id").GetGuid());
+            return assignment;
+        }
+        if (r.Action == "submissions.list")
+        {
+            user.Admin();
+            var status = r.Optional("status",20);
+            if (status is not null && !new[] { "PENDING","APPROVED","REJECTED" }.Contains(status)) throw ApiException.Invalid("Estado inválido.");
+            var where = "TRUE";
+            var args = new List<(string,object?)>();
             if (status is not null) { where += " AND status=@status"; args.Add(("status",status)); }
+            if (r.Optional("missionId",36) is not null) { where += " AND \"missionId\"=@mission"; args.Add(("mission",r.Id("missionId"))); }
             return await ModuleQueries.Page(db,r,"api_submissions",where,[..args]);
         }
         if (r.Action is "progress.get" or "history.get")
@@ -28,20 +48,19 @@ public sealed class MissionsModule : IActionHandler
                 SELECT json_build_object('rankCode',u.rank_code,'totalBadgeWeight',coalesce((SELECT sum(m.badge_weight) FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=u.id AND s.status='APPROVED'),0),'completedMissionTotal',(SELECT count(*) FROM mission_submissions s WHERE s.user_id=u.id AND s.status='APPROVED'))::text FROM users u WHERE u.id=@user
                 """,("user",user.Id));
             if (r.Action == "progress.get") return progress!.Value;
-            return new { completedMissionTotal = progress!.Value.GetProperty("completedMissionTotal").GetInt64(), history = await ModuleQueries.Page(db,r,"api_submissions","\"userId\"=@user",("user",user.Id)) };
+            return new { completedMissionTotal = progress!.Value.GetProperty("completedMissionTotal").GetInt64(), history = await ModuleQueries.Page(db,r,"api_submission_status","\"userId\"=@user",("user",user.Id)) };
         }
         if (r.Action == "submissions.create")
         {
             var missionId = r.Id("missionId");
-            // Publicación/rango comprobados en servidor, no solo en las pantallas.
-            var mission = await db.One("SELECT json_build_object('rank',minimum_rank_code)::text FROM missions WHERE id=@id AND publication_state='PUBLISHED' FOR SHARE",("id",missionId)) ?? throw ApiException.Missing();
-            var rank = await db.One("SELECT json_build_object('rank',rank_code)::text FROM users WHERE id=@id",("id",user.Id));
-            var ranks = new[] { "RECRUTA","SOLDADO","CABO","SARGENTO" };
-            if (!user.IsAdmin && Array.IndexOf(ranks,rank!.Value.GetProperty("rank").GetString()) < Array.IndexOf(ranks,mission.GetProperty("rank").GetString())) throw ApiException.Forbidden();
+            await Eligible(db,user,missionId);
+            // Bloquea la asignación para serializar envíos del mismo usuario/misión.
+            var assignment = await db.One("SELECT json_build_object('id',id)::text FROM mission_assignments WHERE mission_id=@mission AND user_id=@user FOR UPDATE",("mission",missionId),("user",user.Id));
+            if (assignment is null) throw new ApiException(409,"MISSION_NOT_ASSIGNED","Asígnate la misión antes de subir la evidencia.");
             var existing = await db.One("SELECT json_build_object('id',id,'status',status)::text FROM mission_submissions WHERE mission_id=@mission AND user_id=@user FOR UPDATE", ("mission",missionId),("user",user.Id));
             if (existing is not null && existing.Value.GetProperty("status").GetString() != "REJECTED")
                 throw new ApiException(409,"SUBMISSION_EXISTS","Ya tienes una evidencia pendiente o aprobada en esta misión.");
-            var fileId = await FilesModule.Store(r,user,db,ct);
+            var fileId = await FilesModule.Store(r,user,db,ct,"MISSION_EVIDENCE");
             var id = existing?.GetProperty("id").GetGuid() ?? Guid.NewGuid();
             if (existing is null)
                 await db.Execute("INSERT INTO mission_submissions(id,mission_id,user_id,file_id,submission_note) VALUES(@id,@mission,@user,@file,@note)",("id",id),("mission",missionId),("user",user.Id),("file",fileId),("note",r.Optional("submissionNote",2000)));
@@ -49,7 +68,7 @@ public sealed class MissionsModule : IActionHandler
             {
                 await db.Execute("UPDATE mission_submissions SET file_id=@file,submission_note=@note,status='PENDING',review_note=NULL,reviewed_at=NULL,reviewed_by_user_id=NULL WHERE id=@id",("id",id),("file",fileId),("note",r.Optional("submissionNote",2000)));
             }
-            return await ModuleQueries.Get(db,"api_submissions",id);
+            return await ModuleQueries.Get(db,user.IsAdmin ? "api_submissions" : "api_submission_status",id);
         }
         user.Admin();
         if (r.Action == "submissions.review")
@@ -90,5 +109,12 @@ public sealed class MissionsModule : IActionHandler
         if (changed == 0) throw new ApiException(409,"INVALID_STATE","La misión no existe o no admite esta transición.");
         await ModuleQueries.Audit(db,user,r.Action,missionToChange);
         return await ModuleQueries.Get(db,"api_missions",missionToChange);
+    }
+    private static async Task Eligible(IDatabase db, Actor user, Guid missionId)
+    {
+        var mission = await db.One("SELECT json_build_object('rank',minimum_rank_code)::text FROM missions WHERE id=@id AND publication_state='PUBLISHED' FOR SHARE",("id",missionId)) ?? throw ApiException.Missing();
+        var rank = await db.One("SELECT json_build_object('rank',rank_code)::text FROM users WHERE id=@id",("id",user.Id));
+        var ranks = new[] { "RECRUTA","SOLDADO","CABO","SARGENTO" };
+        if (!user.IsAdmin && Array.IndexOf(ranks,rank!.Value.GetProperty("rank").GetString()) < Array.IndexOf(ranks,mission.GetProperty("rank").GetString())) throw ApiException.Forbidden();
     }
 }

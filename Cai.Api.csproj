@@ -9,6 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.3" />
-    <Content Include="database/001_schema.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="database/*.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

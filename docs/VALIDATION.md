@@ -2,6 +2,15 @@
 
 Fecha: 2 de octubre de 2026.
 
+Actualización de asignaciones y permisos de evidencias:
+
+- `scripts/smoke.mjs`: **141 verificaciones de integración correctas** con PostgreSQL real. Incluye asignación sin archivo, asignaciones simultáneas sin duplicados, conservación al iniciar otra sesión, comprobación de rango, subida posterior, estados de tarjeta y bloqueo de consulta/descarga de evidencias para soldados, incluso del archivo propio.
+- `scripts/migration-smoke.sql`: actualización desde `001` correcta, con datos anteriores; `002` repetido sin duplicar asignaciones ni perder estados aprobados. Archivos actuales y anteriores de evidencias quedan protegidos; certificados conservan su clasificación.
+- Frontend recompilado correctamente. La tarjeta utiliza acciones de ancho completo y texto ajustable; la subida se abre por separado. No hubo navegador conectado disponible para una revisión visual interactiva.
+- Los scripts `001_schema.sql` y `002_mission_assignments.sql` se copian al resultado publicado y se ejecutan en orden al arrancar con `Database:AutoMigrate=true`.
+
+Las verificaciones originales del primer backend se conservan debajo como referencia.
+
 - .NET SDK 10.0.401 / runtime 10.0.12, Windows: compilación sin errores ni advertencias, restore con lockfile y publicación Release correctos.
 - API ejecutada desde el resultado publicado; PostgreSQL 16.10 local, base aislada.
 - `scripts/smoke.mjs`: **107 verificaciones correctas**. Incluye registro con certificado atómico, rollback y reintento; autorización; titularidad y uso único de certificados; revisión manual; archivos privados; misiones; reenvío tras rechazo; dos aprobaciones simultáneas con un solo éxito; progreso y rango; reportes; roles; revocación de sesiones; CORS y límite de intentos.

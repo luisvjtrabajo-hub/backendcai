@@ -24,13 +24,15 @@ Las respuestas mantienen los objetos usados por React: listas `{ items, total, p
 | `activation.status` | Autenticado | `page?`, `pageSize?`; devuelve `{ user, reviews }` |
 | `certificateReviews.list` | Admin | `status?` (por defecto `PENDING`), `page?`, `pageSize?` |
 | `certificateReviews.review` | Admin | `id`, `status`: `APPROVED`/`REJECTED`, `reviewNote?` |
-| `missions.list` | Activo/admin | `page?`, `pageSize?`; soldados ven publicadas y de rango permitido |
+| `missions.list` | Activo/admin | `page?`, `pageSize?`; soldados ven publicadas y de rango permitido; `myAssignment` incluye su ID y estado, sin archivos |
+| `missions.assign` | Activo/admin | `id` de misión; se asigna al usuario actual sin archivo; reintentar devuelve la misma asignación |
+| `assignments.list` | Activo/admin | `missionId?`, `page?`, `pageSize?`; soldados ven sus asignaciones y estados, sin evidencias |
 | `missions.create` | Admin | `title`, `description`, `missionType?`, `minimumRankCode?`, `genderEligibility?`, `badgeWeight?` |
 | `missions.update` | Admin | `id` y mismos campos de creación; solo borradores |
 | `missions.publish` | Admin | `id`; `DRAFT` → `PUBLISHED` |
 | `missions.archive` | Admin | `id`; `DRAFT`/`PUBLISHED` → `ARCHIVED` |
-| `submissions.create` | Activo/admin | Multipart: `missionId`, `submissionNote?` + archivo |
-| `submissions.list` | Activo/admin | `status?`, `page?`, `pageSize?`; soldados ven sus propias evidencias |
+| `submissions.create` | Activo/admin | Multipart: `missionId`, `submissionNote?` + archivo; requiere asignación previa; al soldado devuelve solo estado e IDs de misión/envío |
+| `submissions.list` | Admin | `status?`, `missionId?`, `page?`, `pageSize?`; consulta de evidencias exclusiva para administradores |
 | `submissions.review` | Admin | `id`, `status`: `APPROVED`/`REJECTED`, `reviewNote?` |
 | `progress.get` | Activo/admin | `{}`; `{ rankCode, totalBadgeWeight, completedMissionTotal }` |
 | `history.get` | Activo/admin | `page?`, `pageSize?`; `{ completedMissionTotal, history: { items, total, page, pageSize } }` |
@@ -39,7 +41,7 @@ Las respuestas mantienen los objetos usados por React: listas `{ items, total, p
 | `sectReports.review` | Admin | `id`, `status`: `APPROVED`/`REJECTED`, `reviewNote?` |
 | `sectRegistry.list` | Activo/admin | `page?`, `pageSize?`; reportes aprobados |
 | `overview.get` | Admin | `{}`; métricas del dashboard |
-| `files.get` | Propietario/admin | `id`; `{ id, name, contentType, base64 }` |
+| `files.get` | Admin para evidencias; propietario/admin para certificados | `id`; `{ id, name, contentType, base64 }`; el soldado no puede descargar evidencias ni siquiera propias |
 
 Admin significa `SUPER_ADMIN` o `REGISTRADOR`. Un registrador no puede asignar roles. Ningún administrador puede modificar su propia cuenta mediante estas acciones ni desactivar a otro administrador. Las cuentas inactivas solo pueden consultar `auth.me` o cerrar sesión si conservan una sesión válida; la desactivación explícita las revoca.
 
@@ -48,6 +50,8 @@ Admin significa `SUPER_ADMIN` o `REGISTRADOR`. Un registrador no puede asignar r
 Límites de texto: nombre de persona 160; correo 254; certificado 100; título/nombre de secta 180; descripción de misión/referencia de reporte 4000; ubicación 1000; notas de revisión/evidencia 2000. `password` conserva espacios literales; el resto de textos se recorta. Correo normalizado a minúsculas y números de certificado a mayúsculas.
 
 ## Subir evidencia o certificado
+
+El soldado primero se asigna una misión con `fetchApi('missions.assign', { data: { id: missionId } })`, sin archivo. La asignación se conserva al cerrar sesión o recargar. Puede subir la evidencia posteriormente con `submissions.create`. Solo administradores pueden consultar evidencias. El historial personal y las asignaciones incluyen estados, sin archivos, URLs ni notas de evidencia.
 
 El formulario multipart tiene **solo tres campos**: `action`, `data` (texto JSON) y `file` (un archivo).
 

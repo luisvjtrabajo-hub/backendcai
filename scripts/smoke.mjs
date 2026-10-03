@@ -1,5 +1,5 @@
 // Pruebas de integración reales. Ejecutar únicamente sobre una base de pruebas.
-// Generan usuarios y registros identificados por UUID; no borran datos existentes.
+// Generan usuarios y registros identificados por UUID; solo eliminan lógicamente sus misiones de prueba.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
@@ -10,6 +10,9 @@ if (!email || !password) throw new Error('Configura TEST_ADMIN_EMAIL y TEST_ADMI
 let checks = 0;
 const verify = (condition, message) => { assert.ok(condition, message); checks++; };
 async function call(action, data = {}, token, expected = 200, file) {
+  if (action === 'missions.create' || action === 'missions.update') data = { minimumRankCode:'POSTULANTE',evidenceRequirement:'Archivo verificable',missionType:'FORMATIVA', ...data };
+  if (action === 'submissions.create') data = { respectConfirmed:true,privacyConfirmed:true,occurredAt:new Date().toISOString(),submissionNote:expected === 400 ? '' : 'Bitácora detallada de la actividad realizada con respeto.', ...data };
+  if (action === 'submissions.review') data = { requirementsVerified:true, ...data };
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   let body;
   if (file) {
@@ -74,6 +77,7 @@ await call('activation.claim', { certificateNumber:'NONEXISTENT' },ut,409);
 const activated = await call('activation.claim', { certificateNumber:`test-${run}` },ut);
 verify(activated.user.role === 'SOLDADO_ACTIVE', 'Activación con certificado');
 verify((await call('auth.me', {},ut)).role === 'SOLDADO_ACTIVE', 'Rol actualizado sin reemitir token');
+await call('profile.update',{birthDate:'1990-01-01'},ut);
 const certificateList = await call('certificates.list', { pageSize:100 },at);
 verify(certificateList.items.find(c => c.id === cert.id)?.isUsed, 'Certificado consumido');
 const outsider = await call('auth.register', { email:`outsider-${run}@example.com`,password:userPassword,fullName:'Otro titular' });
@@ -102,7 +106,7 @@ await call('missions.update', { id:mission.id,title:`Misión actualizada ${run}`
 await call('missions.publish', { id:mission.id },at);
 await call('missions.update', { id:mission.id,title:'Bad',description:'x' },at,409);
 await call('submissions.create', { missionId:mission.id },ut,409,png);
-const restrictedMission = await call('missions.create',{title:'Misión de rango superior',description:'Prueba de rango para asignación',minimumRankCode:'SARGENTO'},at);
+const restrictedMission = await call('missions.create',{title:'Misión de rango superior',description:'Prueba de rango para asignación',minimumRankCode:'SARGENTO_ARMAS'},at);
 await call('missions.publish',{id:restrictedMission.id},at);
 await call('missions.assign',{id:restrictedMission.id},ut,403);
 await call('missions.archive',{id:restrictedMission.id},at);
@@ -134,14 +138,14 @@ await call('submissions.create', { missionId:mission.id },ut,409,png);
 await call('submissions.review', { id:submission.id,status:'APPROVED' },ut,403);
 await call('submissions.review', { id:submission.id,status:'REJECTED',reviewNote:'Adjunta otra evidencia' },at);
 const resubmitted = await call('submissions.create', { missionId:mission.id },ut,200,png);
-verify(resubmitted.id === submission.id, 'Reenvío sin duplicar la misión');
+verify(resubmitted.id !== submission.id, 'Corrección conserva el reporte rechazado para auditoría');
 const concurrentReview = await Promise.all([1,2].map(async () => {
-  const response = await fetch(`${url}/api`, { method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${at}`},body:JSON.stringify({action:'submissions.review',data:{id:submission.id,status:'APPROVED'}}) });
+  const response = await fetch(`${url}/api`, { method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${at}`},body:JSON.stringify({action:'submissions.review',data:{id:resubmitted.id,status:'APPROVED',requirementsVerified:true}}) });
   return response.status;
 }));
 verify(concurrentReview.sort().join(',') === '200,409', 'Aprobación concurrente contabilizada una sola vez');
 const progress = await call('progress.get', {},ut);
-verify(progress.totalBadgeWeight === 3 && progress.rankCode === 'SOLDADO', 'Progreso real y promoción de rango');
+verify(progress.totalPoints === 3 && progress.rankCode === 'POSTULANTE', 'Los puntos solos no conceden rango sin ingreso e hito');
 verify((await call('history.get', {},ut)).completedMissionTotal === 1, 'Historial sin duplicados');
 verify((await call('history.get',{},ut)).history.items.every(s=>!('fileId' in s) && !('submissionNote' in s)),'Historial del soldado no revela evidencias');
 const members = await call('members.list', {},ut);
@@ -160,7 +164,37 @@ await call('overview.get', {},ut,403);
 await call('missions.archive', { id:mission.id },at);
 await call('missions.assign', { id:mission.id },outsider.accessToken,404);
 await call('submissions.create', { missionId:mission.id },outsider.accessToken,404,png);
+await call('missions.delete', { id:mission.id },ut,403);
+const beforeDelete = await call('missions.list', { pageSize:100 },at);
+const deleted = await call('missions.delete', { id:mission.id },at);
+verify(deleted.id === mission.id && deleted.deleted === true, 'Administrador elimina misión archivada');
+const afterDelete = await call('missions.list', { pageSize:100 },at);
+verify(afterDelete.total === beforeDelete.total - 1 && !afterDelete.items.some(m => m.id === mission.id), 'Misión eliminada fuera del catálogo administrador y su total');
+verify(!(await call('missions.list', { pageSize:100 },ut)).items.some(m => m.id === mission.id), 'Misión eliminada fuera del catálogo soldado');
+await call('missions.delete', { id:mission.id },at,404);
+await call('missions.delete', { id:randomUUID() },at,404);
+await call('missions.publish', { id:mission.id },at,409);
+await call('missions.archive', { id:mission.id },at,409);
+await call('missions.assign', { id:mission.id },ut,404);
+await call('submissions.create', { missionId:mission.id },ut,404,png);
+verify((await call('progress.get', {},ut)).totalPoints === progress.totalPoints, 'Eliminar conserva los puntos obtenidos');
+verify((await call('history.get', {},ut)).completedMissionTotal === 1, 'Eliminar conserva las misiones completadas');
+verify((await call('assignments.list', { missionId:mission.id },ut)).total === 1, 'Eliminar conserva asignaciones históricas');
+verify((await call('files.get', { id:proofId },at)).contentType === 'image/png', 'Eliminar conserva evidencias para auditoría');
+const deleteDraft = await call('missions.create', { title:`Borrador a eliminar ${run}`,description:'Prueba de eliminación' },at);
+await call('missions.delete', { id:deleteDraft.id },at);
+await call('missions.update', { id:deleteDraft.id,title:'No revivir',description:'Prueba' },at,409);
+const deletePublished = await call('missions.create', { title:`Publicada a eliminar ${run}`,description:'Prueba de eliminación' },at);
+await call('missions.publish', { id:deletePublished.id },at);
+await call('missions.assign', { id:deletePublished.id },ut);
+const pendingDeletion = await call('submissions.create', { missionId:deletePublished.id },ut,200,png);
+await call('missions.delete', { id:deletePublished.id },at);
+await call('submissions.create', { missionId:deletePublished.id },ut,404,png);
+verify((await call('submissions.list', { missionId:deletePublished.id },at)).items.some(s => s.id === pendingDeletion.id), 'Eliminar conserva reportes pendientes');
+await call('submissions.review', { id:pendingDeletion.id,status:'REJECTED',reviewNote:'Misión retirada del catálogo' },at);
 await call('users.setRole', { id:outsider.user.id,role:'REGISTRADOR' },at);
+const registradorMission = await call('missions.create', { title:`Registrador elimina ${run}`,description:'Prueba de permiso' },at);
+await call('missions.delete', { id:registradorMission.id },outsider.accessToken);
 await call('users.setRole', { id:user.user.id,role:'REGISTRADOR' },outsider.accessToken,403);
 await call('users.deactivate', { id:outsider.user.id },at,403);
 await call('users.setRole', { id:outsider.user.id,role:'SOLDADO_ACTIVE' },at);

@@ -38,6 +38,8 @@ Arquitectura: `Api/` define contrato y dispatcher; `Modules/` contiene reglas po
 
 Consulta [docs/API.md](docs/API.md) para las acciones y ejemplos de revisión.
 
+El sistema de **10 rangos y 53 misiones del Excel** está integrado. Consulta [docs/RANGOS_Y_MISIONES.md](docs/RANGOS_Y_MISIONES.md) para hitos, puntos, salvaguardas, interpretación de requisitos circulares y tratamiento de rangos anteriores. No requiere nuevas variables de entorno.
+
 ## Desarrollo local con Docker
 
 Desde `backendcai/`:
@@ -120,7 +122,17 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_schema.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_mission_assignments.sql
 ```
 
-Los scripts son transaccionales, idempotentes y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Si prefieres ejecutar SQL manualmente, establece `Database__AutoMigrate=false` después de aplicar ambos. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque los ejecuta en orden, sin llevar un historial de versiones.
+También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql) y [database/005_mission_deletion.sql](database/005_mission_deletion.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
+
+```powershell
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/003_rank_system.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/004_catalog.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/005_mission_deletion.sql
+```
+
+Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los cinco scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.
+
+En Misiones, los administradores disponen de **Eliminar misión**, con confirmación. La misión se retira del catálogo y bloquea nuevas asignaciones/reportes; conserva las evidencias, el historial y los puntos obtenidos. Las misiones oficiales eliminadas no vuelven a aparecer al reiniciar o importar el catálogo.
 
 ## Conectar Vercel
 
@@ -141,10 +153,10 @@ El cliente usa siempre `POST /api`; `fetchApi(action, { data, file, signal })` e
 - Un certificado solo puede consumirse una vez. La activación automática exige correo del titular coincidente; si no se registró correo, exige nombre coincidente. Los certificados sin titular requieren revisión manual.
 - Las cuentas nuevas quedan pendientes; el servidor controla roles y evita elevar permisos desde el registro.
 - El soldado puede asignarse una misión sin subir un archivo. La tarjeta conserva su estado y ofrece subir la evidencia después. No muestra el botón de consultar evidencias ni permite obtenerlas por API.
-- Una evidencia por usuario/misión, con asignación previa. Un rechazo permite reenviar; una aprobación no puede repetirse. Solo las aprobaciones suman peso y rango: RECRUTA 0–2, SOLDADO 3–9, CABO 10–19, SARGENTO 20+.
+- Asignación previa y un reporte pendiente por usuario/misión. Un rechazo permite corregir con otro reporte; las aprobaciones se repiten únicamente si el catálogo lo permite. Los puntos, hitos, bonos y topes determinan los diez rangos del Excel.
 - Se respeta el rango mínimo de misiones. La versión actual usa `genderEligibility=ALL`, acorde al formulario actual, que no recoge género.
 - Los reportes pendientes son visibles al autor y administradores; los aprobados aparecen en el registro de usuarios activos.
-- Las revisiones de misiones y reportes están disponibles en la API documentada; el frontend actual no tiene todavía pantallas para esas dos revisiones.
+- El frontend incluye revisión real de evidencias en Misiones, moderación de fichas en Sectas y gestión de hitos, reserva y conducta en el dashboard administrador.
 
 ## Verificaciones
 
@@ -155,7 +167,7 @@ dotnet publish Cai.Api.csproj -c Release -o artifacts/publish
 npm run build
 ```
 
-Para integración, arrancar una API y PostgreSQL **de pruebas**, con CORS local. El script crea datos nuevos con un UUID y no borra registros:
+Para integración, arrancar una API y PostgreSQL **de pruebas**, con CORS local. El script crea datos nuevos con un UUID y comprueba la eliminación lógica únicamente de sus misiones de prueba:
 
 ```powershell
 $env:TEST_API_URL = 'http://localhost:8080'

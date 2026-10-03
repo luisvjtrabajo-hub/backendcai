@@ -19,7 +19,8 @@ public sealed class UsersModule : IActionHandler
         {
             var role = r.Optional("role", 30);
             if (role is not null && !new[] { "SUPER_ADMIN","REGISTRADOR","SOLDADO_PENDING","SOLDADO_ACTIVE","SOLDADO_INACTIVE" }.Contains(role)) throw ApiException.Invalid("Rol inválido.");
-            return await ModuleQueries.Page(db, r, "api_users", role is null ? "TRUE" : "role=@role", role is null ? [] : [("role", role)]);
+            return await ModuleQueries.PageProjected(db, r, "api_users", role is null ? "TRUE" : "role=@role",
+                "v.*,(SELECT json_build_object('birthDate',u.birth_date,'parentalConsent',u.parental_consent,'reserve',u.reserve,'sponsorId',u.sponsor_id,'formationStartedAt',u.formation_started_at,'legacyRankCode',u.legacy_rank_code) FROM users u WHERE u.id=v.id) AS profile", role is null ? [] : [("role", role)]);
         }
         var id = r.Id();
         var user = await db.One("SELECT json_build_object('role',role)::text FROM users WHERE id=@id FOR UPDATE", ("id", id)) ?? throw ApiException.Missing();
@@ -37,6 +38,7 @@ public sealed class UsersModule : IActionHandler
             if (oldRole is "SUPER_ADMIN" or "REGISTRADOR") throw ApiException.Forbidden();
             var active = r.Action == "users.activate";
             await db.Execute("UPDATE users SET role=@role WHERE id=@id", ("id", id), ("role", active ? "SOLDADO_ACTIVE" : "SOLDADO_INACTIVE"));
+            if(active) await db.Execute("UPDATE users SET reserve=false,activity_resumed_at=now() WHERE id=@id",("id",id));
             await db.Execute("UPDATE certificate_reviews SET status=@status,review_note=@note,reviewed_by_user_id=@actor,reviewed_at=now() WHERE user_id=@id AND status='PENDING'",
                 ("status", active ? "APPROVED" : "REJECTED"), ("note", r.Optional("reviewNote", 2000)), ("actor", actor.Id), ("id", id));
         }

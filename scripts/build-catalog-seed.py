@@ -16,7 +16,7 @@ for m in c['missions']:
     field=prefix in ['ESC','DEB','EST']
     limit=1 if m['repeat']=='Una vez' else 4 if m['repeat']=='4 veces' else None
     vals=[q(m['code']),q(m['title']),q(m['title']),q(typ),q(c['ranks'][m['minimumLevel']-1]['code']),str(m['points']),q(m['category']),q(m['area']),q(m['evidence']),str(limit) if limit else 'NULL',str(m['monthlyCap']) if m['monthlyCap'] else 'NULL',str(field).lower(),str(m['code'] in ['VIG-02','VIG-03','VIG-05']).lower(),str(m['code'] in ['DEB-04','EST-05']).lower()]
-    lines.append('INSERT INTO missions(catalog_code,title,description,mission_type,minimum_rank_code,badge_weight,category,area,evidence_requirement,repeat_limit,monthly_cap,field_mission,honor_allowed,invitation_required,publication_state,published_at) VALUES('+','.join(vals)+",'PUBLISHED',now()) ON CONFLICT(catalog_code) DO NOTHING;")
+    lines.append('INSERT INTO missions(catalog_code,title,description,mission_type,minimum_rank_code,badge_weight,category,area,evidence_requirement,repeat_limit,monthly_cap,field_mission,honor_allowed,invitation_required,monthly_once,publication_state,published_at) VALUES('+','.join(vals)+','+str(m['repeat']=='Mensual').lower()+",'PUBLISHED',now()) ON CONFLICT(catalog_code) DO NOTHING;")
 lines += ["INSERT INTO schema_migrations(name) VALUES('004_catalog.sql') ON CONFLICT DO NOTHING;", 'COMMIT;']
 (root/'database/004_catalog.sql').write_text('\n'.join(lines)+'\n',encoding='utf-8')
 print('Catalog SQL generated.')

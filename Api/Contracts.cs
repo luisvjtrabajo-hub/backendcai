@@ -49,6 +49,12 @@ public sealed record ApiRequest(string Action, JsonElement Data, IFormFile? File
         if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw ApiException.Invalid($"{name} debe ser booleano.");
         return value.GetBoolean();
     }
+    public double? Coordinate(string name,double minimum,double maximum)
+    {
+        if(!Data.TryGetProperty(name,out var v) || v.ValueKind==JsonValueKind.Null) return null;
+        if(v.ValueKind!=JsonValueKind.Number || !v.TryGetDouble(out var value) || !double.IsFinite(value) || value<minimum || value>maximum) throw ApiException.Invalid($"{name} debe estar entre {minimum} y {maximum}.");
+        return value;
+    }
     public string Choice(string name, string fallback, params string[] choices)
     {
         var value = Optional(name, 100) ?? fallback;

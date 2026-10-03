@@ -10,7 +10,7 @@ public sealed class RanksModule : IActionHandler
     public async Task<object> Handle(ApiRequest r,Actor? actor,IDatabase db,CancellationToken ct)
     {
         var user=actor ?? throw ApiException.Forbidden(); user.Active();
-        if(r.Action=="ranks.get") return new {ranks=await db.Many("SELECT data::text FROM cai_ranks ORDER BY level"),milestones=await db.Many("SELECT data::text FROM cai_milestones ORDER BY level")};
+        if(r.Action=="ranks.get") return new {ranks=await db.Many("SELECT data::text FROM cai_ranks ORDER BY level"),milestones=await db.Many("SELECT (data || CASE WHEN code='HIT-GM' THEN jsonb_build_object('requirement','Elección del Capítulo General, trayectoria completa y obra de la Orden fundada y sostenida.') ELSE '{}'::jsonb END)::text FROM cai_milestones ORDER BY level")};
         if(r.Action=="points.list") return await ModuleQueries.Page(db,r,"api_points","\"userId\"=@id",("id",user.Id));
         if(r.Action=="evidence.upload")
         {
@@ -34,7 +34,7 @@ public sealed class RanksModule : IActionHandler
                 if(sponsor==target || (sponsor is not null && await db.Count("SELECT count(*) FROM users u JOIN cai_ranks rk ON rk.code=u.rank_code WHERE u.id=@id AND u.role='SOLDADO_ACTIVE' AND NOT u.reserve AND rk.level>=5",("id",sponsor))==0)) throw ApiException.Invalid("El padrino debe ser otro miembro activo de rango 5 o superior.");
                 await db.Execute("UPDATE users SET parental_consent=@consent,sponsor_id=@sponsor,reserve=@reserve WHERE id=@id",("id",target),("consent",r.Flag("parentalConsentVerified")),("sponsor",sponsor),("reserve",r.Flag("reserve")));
                 if(r.Flag("liftSanction")) {if(user.Role!="SUPER_ADMIN") throw ApiException.Forbidden(); await db.Execute("UPDATE users SET rank_ceiling=10 WHERE id=@id",("id",target));}
-                if(!r.Flag("reserve")) await db.Execute("DELETE FROM activity_alerts WHERE user_id=@id",("id",target));
+                if(!r.Flag("reserve")) {await db.Execute("DELETE FROM activity_alerts WHERE user_id=@id",("id",target)); await db.Execute("UPDATE users SET activity_resumed_at=now() WHERE id=@id",("id",target));}
             }
             await ModuleQueries.Audit(db,user,r.Action,target); return await RankSystem.Progress(db,target);
         }
@@ -63,7 +63,8 @@ public sealed class RanksModule : IActionHandler
         user.Admin(); var target=r.Id("userId"); var code=r.Required("code",20);
         var h=await db.One("SELECT data::text FROM cai_milestones WHERE code=@code",("code",code)) ?? throw ApiException.Missing();
         var p=await RankSystem.Profile(db,target,true);
-        await RankSystem.Validator(db,user,target,code=="HIT-CAB" ? 7 : code=="HIT-ING" ? 6 : h.GetProperty("level").GetInt32());
+        if(code=="HIT-GM") {if(user.Role!="SUPER_ADMIN" || user.Id==target) throw ApiException.Forbidden();}
+        else await RankSystem.Validator(db,user,target,code=="HIT-CAB" ? 7 : code=="HIT-ING" ? 6 : 0,r.Flag("foundingValidation"));
         if(code is "HIT-DOM" or "HIT-PROX" or "HIT-FUN") throw ApiException.Invalid("Este hito se verifica automáticamente al aprobar sus misiones llave.");
         if(!r.Flag("requirementsVerified")) throw ApiException.Invalid("Confirma cada requisito del hito y la autenticidad del acta.");
         var note=r.Required("reviewNote",2000);
@@ -71,7 +72,7 @@ public sealed class RanksModule : IActionHandler
         var level=h.GetProperty("level").GetInt32();
         if(level>1 && p.GetProperty("level").GetInt32()<level-1) throw ApiException.Invalid("Completa primero los rangos anteriores.");
         if(code=="HIT-ING" && await db.Count("SELECT count(*) FROM users WHERE id=@id AND formation_started_at<=CURRENT_DATE-30",("id",target))==0) throw ApiException.Invalid("El ingreso requiere 30 días de formación.");
-        if(code=="HIT-ING" && (!r.Flag("interviewVerified") || r.Optional("referenceMemberId",36) is null || await db.Count("SELECT count(*) FROM users WHERE id=@id AND role='SOLDADO_ACTIVE' AND NOT reserve",("id",r.Id("referenceMemberId")))==0)) throw ApiException.Invalid("Se requiere entrevista y referencia de un miembro activo.");
+        if(code=="HIT-ING" && (!r.Flag("interviewVerified") || r.Optional("referenceMemberId",36) is null || r.Id("referenceMemberId")==target || await db.Count("SELECT count(*) FROM users WHERE id=@id AND role='SOLDADO_ACTIVE' AND NOT reserve",("id",r.Id("referenceMemberId")))==0)) throw ApiException.Invalid("Se requiere entrevista y referencia de otro miembro activo.");
         if(code=="HIT-CAB")
         {
             var months=await db.Count("SELECT count(DISTINCT date_trunc('month',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@id AND status='APPROVED' AND NOT honor_report AND occurred_at>=((date_trunc('month',now() AT TIME ZONE 'America/Lima')-interval '2 months') AT TIME ZONE 'America/Lima')",("id",target));

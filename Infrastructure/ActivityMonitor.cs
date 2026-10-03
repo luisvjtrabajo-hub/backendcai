@@ -13,7 +13,7 @@ public sealed class ActivityMonitor(NpgsqlDataSource source, ILogger<ActivityMon
             try
             {
                 await using var cmd = source.CreateCommand("""
-                    WITH activity AS (SELECT u.id,coalesce(max(s.occurred_at) FILTER(WHERE s.status='APPROVED'),u.created_at) AS last_at
+                    WITH activity AS (SELECT u.id,greatest(coalesce(max(s.occurred_at) FILTER(WHERE s.status='APPROVED'),u.created_at),u.activity_resumed_at) AS last_at
                      FROM users u LEFT JOIN mission_submissions s ON s.user_id=u.id WHERE u.role='SOLDADO_ACTIVE' GROUP BY u.id)
                     INSERT INTO activity_alerts(user_id,last_mission_at,days_inactive)
                     SELECT id,last_at,extract(day FROM now()-last_at)::int FROM activity WHERE last_at<=now()-interval '60 days'

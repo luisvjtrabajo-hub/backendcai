@@ -10,18 +10,29 @@ public static class Bootstrap
     {
         if (config.GetValue("Database:AutoMigrate", true))
         {
-            await using var setup = source.CreateCommand("CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
-            await setup.ExecuteNonQueryAsync(ct);
-            foreach (var file in Directory.GetFiles(Path.Combine(contentRoot,"database"),"*.sql").Order(StringComparer.Ordinal))
+            await using var migrationConnection = await source.OpenConnectionAsync(ct);
+            await using var migrationLock = new NpgsqlCommand("SELECT pg_advisory_lock(824671229)",migrationConnection);
+            await migrationLock.ExecuteNonQueryAsync(ct);
+            try
             {
-                await using var check = source.CreateCommand("SELECT count(*) FROM schema_migrations WHERE name=@name");
-                check.Parameters.AddWithValue("name",Path.GetFileName(file));
-                if (Convert.ToInt64(await check.ExecuteScalarAsync(ct)) > 0) continue;
-                await using var cmd = source.CreateCommand(await File.ReadAllTextAsync(file,ct));
-                await cmd.ExecuteNonQueryAsync(ct);
-                await using var record = source.CreateCommand("INSERT INTO schema_migrations(name) VALUES(@name) ON CONFLICT DO NOTHING");
-                record.Parameters.AddWithValue("name",Path.GetFileName(file));
-                await record.ExecuteNonQueryAsync(ct);
+                await using var setup = new NpgsqlCommand("CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())",migrationConnection);
+                await setup.ExecuteNonQueryAsync(ct);
+                foreach (var file in Directory.GetFiles(Path.Combine(contentRoot,"database"),"*.sql").Order(StringComparer.Ordinal))
+                {
+                    await using var check = new NpgsqlCommand("SELECT count(*) FROM schema_migrations WHERE name=@name",migrationConnection);
+                    check.Parameters.AddWithValue("name",Path.GetFileName(file));
+                    if (Convert.ToInt64(await check.ExecuteScalarAsync(ct)) > 0) continue;
+                    await using var cmd = new NpgsqlCommand(await File.ReadAllTextAsync(file,ct),migrationConnection);
+                    await cmd.ExecuteNonQueryAsync(ct);
+                    await using var record = new NpgsqlCommand("INSERT INTO schema_migrations(name) VALUES(@name) ON CONFLICT DO NOTHING",migrationConnection);
+                    record.Parameters.AddWithValue("name",Path.GetFileName(file));
+                    await record.ExecuteNonQueryAsync(ct);
+                }
+            }
+            finally
+            {
+                await using var unlock = new NpgsqlCommand("SELECT pg_advisory_unlock(824671229)",migrationConnection);
+                await unlock.ExecuteNonQueryAsync(CancellationToken.None);
             }
         }
         var email = config["Bootstrap:AdminEmail"];

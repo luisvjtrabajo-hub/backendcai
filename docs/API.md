@@ -27,29 +27,41 @@ Las respuestas mantienen los objetos usados por React: listas `{ items, total, p
 | `missions.list` | Activo/admin | `page?`, `pageSize?`; soldados ven publicadas y de rango permitido; `myAssignment` incluye su ID y estado, sin archivos |
 | `missions.assign` | Activo/admin | `id` de misión; se asigna al usuario actual sin archivo; reintentar devuelve la misma asignación |
 | `assignments.list` | Activo/admin | `missionId?`, `page?`, `pageSize?`; soldados ven sus asignaciones y estados, sin evidencias |
-| `missions.create` | Admin | `title`, `description`, `missionType?`, `minimumRankCode?`, `genderEligibility?`, `badgeWeight?` |
-| `missions.update` | Admin | `id` y mismos campos de creación; solo borradores |
+| `missions.create` | Admin o rango 5+ activo | `title`, `description`, `evidenceRequirement`, `missionType?`, `minimumRankCode?`, `badgeWeight?`, `fieldMission?`; crea borrador |
+| `missions.update` | Admin o autor de rango 5+ | `id` y mismos campos de creación; solo borradores propios, sin cambiar catálogo oficial |
 | `missions.publish` | Admin | `id`; `DRAFT` → `PUBLISHED` |
 | `missions.archive` | Admin | `id`; `DRAFT`/`PUBLISHED` → `ARCHIVED` |
-| `submissions.create` | Activo/admin | Multipart: `missionId`, `submissionNote?` + archivo; requiere asignación previa; al soldado devuelve solo estado e IDs de misión/envío |
+| `missions.delete` | Admin | `id`; devuelve `{ id, deleted: true }`. Retira cualquier misión del catálogo, incluso archivada; ID inexistente o ya eliminado: 404 |
+| `submissions.create` | Activo/admin | `missionId`, `submissionNote`, `occurredAt` ISO con zona, `respectConfirmed=true`, `privacyConfirmed=true`; archivo opcional, requisitos adicionales según misión; ver abajo |
 | `submissions.list` | Admin | `status?`, `missionId?`, `page?`, `pageSize?`; consulta de evidencias exclusiva para administradores |
-| `submissions.review` | Admin | `id`, `status`: `APPROVED`/`REJECTED`, `reviewNote?` |
-| `progress.get` | Activo/admin | `{}`; `{ rankCode, totalBadgeWeight, completedMissionTotal }` |
+| `submissions.review` | Admin con autoridad de validación | `id`, `status`, `requirementsVerified=true` al aprobar; nota obligatoria al rechazar; bonos/sanciones descritos abajo |
+| `progress.get` | Activo/admin | `{}`; rango, escudo, lema, puntos, próximo rango/hito, Hospitalidad, ingreso, reserva y puntos por área |
 | `history.get` | Activo/admin | `page?`, `pageSize?`; `{ completedMissionTotal, history: { items, total, page, pageSize } }` |
-| `sectReports.create` | Activo/admin | `sectName`, `locationDescription`, `referenceNote` |
+| `sectReports.create` | Activo/admin | `sectName`, `locationDescription`, `referenceNote` (doctrina/fuentes), `latitude?`, `longitude?`; coordenadas deben venir juntas |
 | `sectReports.list` | Activo/admin | `status?` (por defecto `PENDING`), `page?`, `pageSize?`; solo propios para soldados |
 | `sectReports.review` | Admin | `id`, `status`: `APPROVED`/`REJECTED`, `reviewNote?` |
 | `sectRegistry.list` | Activo/admin | `page?`, `pageSize?`; reportes aprobados |
 | `overview.get` | Admin | `{}`; métricas del dashboard |
 | `files.get` | Admin para evidencias; propietario/admin para certificados | `id`; `{ id, name, contentType, base64 }`; el soldado no puede descargar evidencias ni siquiera propias |
+| `ranks.get` | Activo/admin | `{}`; los diez rangos y diez hitos |
+| `profile.update` | Propietario/admin | `birthDate`; admin puede indicar `userId`, `parentalConsentVerified`, `sponsorId?`, `reserve`, `reviewNote` obligatoria y `liftSanction?` solo superadmin |
+| `milestones.validate` | Admin autorizado | `userId`, `code`, `requirementsVerified`, `reviewNote`, archivo PDF y declaraciones del hito; ver guía |
+| `points.list` | Activo/admin | Historial privado propio, paginado, con bonos y sanciones |
+| `evidence.upload` | Activo/admin | Archivo privado en multipart; devuelve `{ id }`; permite cargar previamente una invitación |
+| `activity.list` | Admin | Alertas de 60/120 días, paginadas |
+| `conduct.create` | Activo/admin | `targetId`, `note`; reporte privado al Capítulo |
+| `conduct.list` | Admin | Reportes privados, paginados |
+| `conduct.review` | Superadmin | `id`, `upheld`, `reviewNote`; confirmar humillación retira el rango |
 
 Admin significa `SUPER_ADMIN` o `REGISTRADOR`. Un registrador no puede asignar roles. Ningún administrador puede modificar su propia cuenta mediante estas acciones ni desactivar a otro administrador. Las cuentas inactivas solo pueden consultar `auth.me` o cerrar sesión si conservan una sesión válida; la desactivación explícita las revoca.
 
-`missionType`: `OPERACIONAL` (por defecto), `FORMATIVA`, `ESPIRITUAL`. Rango mínimo: `RECRUTA` (por defecto), `SOLDADO`, `CABO`, `SARGENTO`. Género: `ALL`. Peso de badge: 1–100, por defecto 1. Publicación y estado de revisión se asignan en el servidor.
+`missionType`: `OPERACIONAL` (por defecto), `FORMATIVA`, `ESPIRITUAL`. Las propias operacionales son de campo. Rango mínimo de una misión propia: `CABALLERO_TEMPLE` por defecto; códigos válidos en `ranks.get`. `badgeWeight` representa puntos, 1–1000 en misiones propias; las oficiales conservan sus valores del libro. Género sigue `ALL`. Publicación y revisiones se asignan en el servidor. Reglas detalladas y decisiones de interpretación: [RANGOS_Y_MISIONES.md](RANGOS_Y_MISIONES.md).
 
 Límites de texto: nombre de persona 160; correo 254; certificado 100; título/nombre de secta 180; descripción de misión/referencia de reporte 4000; ubicación 1000; notas de revisión/evidencia 2000. `password` conserva espacios literales; el resto de textos se recorta. Correo normalizado a minúsculas y números de certificado a mayúsculas.
 
 ## Subir evidencia o certificado
+
+La eliminación es lógica y auditada: bloquea nuevas asignaciones, reportes, ediciones y publicaciones. Conserva las asignaciones, los reportes, los archivos, los puntos y los hitos históricos; los administradores pueden terminar de revisar reportes pendientes mediante `submissions.list`/`submissions.review`. Las misiones eliminadas desaparecen de `missions.list` para todos los roles y no se recrean al importar el catálogo. No hay acción de restauración.
 
 El soldado primero se asigna una misión con `fetchApi('missions.assign', { data: { id: missionId } })`, sin archivo. La asignación se conserva al cerrar sesión o recargar. Puede subir la evidencia posteriormente con `submissions.create`. Solo administradores pueden consultar evidencias. El historial personal y las asignaciones incluyen estados, sin archivos, URLs ni notas de evidencia.
 
@@ -60,7 +72,10 @@ const form = new FormData();
 form.append('action', 'submissions.create');
 form.append('data', JSON.stringify({
   missionId: 'UUID_DE_LA_MISION',
-  submissionNote: 'Actividad realizada con el equipo'
+  submissionNote: 'Bitácora detallada de la actividad realizada con el equipo',
+  occurredAt: new Date().toISOString(),
+  respectConfirmed: true,
+  privacyConfirmed: true
 }));
 form.append('file', selectedFile);
 const response = await fetch(`${API}/api`, {
@@ -69,6 +84,14 @@ const response = await fetch(`${API}/api`, {
   body: form
 });
 ```
+
+Se requiere fecha de nacimiento registrada. Sin archivo o enlace, las misiones que admiten bitácora necesitan al menos 30 caracteres. `honorReport` aplica únicamente en VIG-02/03/05 y nunca genera un hito verificado. `evidenceUrl` debe usar HTTPS. `recordingIncluded=true` exige `recordingConsent=true`.
+
+Campo requiere `companionId` de otro miembro activo, `endedAt` con zona, `safeFieldConfirmed=true`, `noVulnerableTargets=true`. El compañero es opcional en otras actividades, para acreditar trabajo en equipo. FOR-04 requiere `moduleCode`: `CREDO`/`SACRAMENTOS`/`VIDA`/`ORACION`. VIG-05 requiere `linkedMissionId`. CAR-01 requiere `sectReportId` propio aprobado con coordenadas y fotografía. DEB-04 y EST-05 requieren `invitationFileId`: cargar antes PDF con `evidence.upload`. `mentionsMinors` marca revisión especial.
+
+La revisión puede declarar `excellent`, `teamBonus` o `firstRegistryBonus` (este último con `sectReportId`). El tope incluye esos bonos. Rechazos usan `rejectionReason`: `OTHER`, `DISRESPECT`, `FALSE_EVIDENCE`. `foundingValidation=true` necesita nota y solo permite al superadministrador suplir un validador cuando no existe administrador con rango suficiente. Un actor no puede revisar sus propios reportes/hitos.
+
+Hitos manuales: HIT-ING exige `interviewVerified`, `referenceMemberId`; HIT-CAB, `doctrinalExamVerified`, `ledFieldMissionVerified`; HIT-COM, `localCommandVerified`; HIT-MAR, `distinctLocationsVerified`; HIT-GM, `chapterElectionVerified` y rol superadmin distinto del candidato. Los demás requisitos se comprueban contra misiones validadas. HIT-DOM/PROX/FUN son automáticos y no admiten acta que sustituya sus misiones.
 
 No definir `Content-Type` manualmente en multipart: el navegador añade el boundary. JPG/PNG/WebP/GIF/PDF, máximo 5 MB; la firma se comprueba y los bytes se guardan dentro de la misma transacción. Ante un fallo, no queda un archivo nuevo huérfano. Los archivos anteriores a un reenvío se conservan; no se eliminan automáticamente.
 
@@ -79,12 +102,12 @@ El frontend registra y activa en una sola solicitud `auth.register`: `activation
 ## Revisar y aprobar
 
 ```javascript
-// Estas acciones pueden usarse desde una futura pantalla de moderación.
+// La pantalla Misiones ya contiene la moderación para administradores.
 const pending = await fetchApi('submissions.list', {
   data: { status: 'PENDING', page: 1, pageSize: 50 }
 });
 await fetchApi('submissions.review', {
-  data: { id: pending.items[0].id, status: 'APPROVED', reviewNote: 'Evidencia verificada' }
+  data: { id: pending.items[0].id, status: 'APPROVED', requirementsVerified: true, reviewNote: 'Evidencia verificada' }
 });
 // Aprobar hace que se sumen los puntos y se recalcule el rango una sola vez.
 await fetchApi('sectReports.review', {

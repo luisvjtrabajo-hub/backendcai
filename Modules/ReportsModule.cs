@@ -10,7 +10,7 @@ public sealed class ReportsModule : IActionHandler
     {
         var user = actor ?? throw ApiException.Forbidden();
         user.Active();
-        if (r.Action == "sectRegistry.list") return await ModuleQueries.Page(db,r,"api_sect_reports","status='APPROVED'");
+        if (r.Action == "sectRegistry.list") return await ModuleQueries.PageProjected(db,r,"api_sect_reports","status='APPROVED'","v.*,(SELECT latitude FROM sect_reports WHERE id=v.id) AS latitude,(SELECT longitude FROM sect_reports WHERE id=v.id) AS longitude");
         if (r.Action == "sectReports.list")
         {
             var status = r.Choice("status","PENDING","PENDING","APPROVED","REJECTED");
@@ -22,6 +22,9 @@ public sealed class ReportsModule : IActionHandler
             var id = Guid.NewGuid();
             await db.Execute("INSERT INTO sect_reports(id,sect_name,location_description,reference_note,reported_by_user_id) VALUES(@id,@name,@location,@note,@user)",
                 ("id",id),("name",r.Required("sectName",180)),("location",r.Required("locationDescription",1000)),("note",r.Required("referenceNote",4000)),("user",user.Id));
+            var latitude=r.Coordinate("latitude",-85.0511,85.0511); var longitude=r.Coordinate("longitude",-180,180);
+            if((latitude is null)!=(longitude is null)) throw ApiException.Invalid("Indica latitud y longitud juntas.");
+            await db.Execute("UPDATE sect_reports SET latitude=@lat,longitude=@lon WHERE id=@id",("id",id),("lat",latitude),("lon",longitude));
             return await ModuleQueries.Get(db,"api_sect_reports",id);
         }
         user.Admin();

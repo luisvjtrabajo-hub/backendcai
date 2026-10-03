@@ -12,7 +12,7 @@ internal static class ModuleQueries
     {
         var page = r.Number("page", 1, 1, 100000);
         var size = r.Number("pageSize", 50, 1, 100);
-        var total = await db.Count($"SELECT count(*) FROM {view} WHERE {where}", args);
+        var total = await db.Count($"SELECT count(*) FROM {view} v WHERE {where}", args);
         var items = await db.Many($"SELECT row_to_json(t)::text FROM (SELECT {projection} FROM {view} v WHERE {where} ORDER BY v.\"createdAt\" DESC,v.id LIMIT @size OFFSET @offset) t", [..args, ("size", size), ("offset", (page - 1) * size)]);
         return new { items, total, page, pageSize = size };
     }

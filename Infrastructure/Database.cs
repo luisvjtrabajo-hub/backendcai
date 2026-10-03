@@ -51,7 +51,12 @@ public static class ConnectionSettings
     public static string Parse(string value)
     {
         if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
-            !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)) return value;
+            !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            // Render usa contraseña y SSL, sin Kerberos/GSSAPI en la imagen .NET.
+            var settings = new NpgsqlConnectionStringBuilder(value) { GssEncryptionMode = GssEncryptionMode.Disable };
+            return settings.ConnectionString;
+        }
         var uri = new Uri(value);
         var credentials = uri.UserInfo.Split(':', 2);
         if (credentials.Length != 2) throw new InvalidOperationException("DATABASE_URL debe incluir usuario y contraseña.");
@@ -60,7 +65,8 @@ public static class ConnectionSettings
             Host = uri.Host, Port = uri.Port > 0 ? uri.Port : 5432,
             Username = Uri.UnescapeDataString(credentials[0]), Password = Uri.UnescapeDataString(credentials[1]),
             Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
-            SslMode = SslMode.Require, MaxPoolSize = 20, Timeout = 15, CommandTimeout = 30
+            SslMode = SslMode.Require, GssEncryptionMode = GssEncryptionMode.Disable,
+            MaxPoolSize = 20, Timeout = 15, CommandTimeout = 30
         };
         foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {

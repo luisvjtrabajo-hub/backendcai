@@ -102,6 +102,8 @@ dotnet run --project Cai.Api.csproj
 
 Para permitir otro origen, agregar `Cors__AllowedOrigins__1`, etc. No usar `*`. No configurar `PORT` en Render: la plataforma lo asigna. `DATABASE_URL` admite la URL PostgreSQL de Render; también se admite `ConnectionStrings__Database` en formato Npgsql. Las URLs usan SSL `Require` por defecto; para pruebas locales se puede usar `?sslmode=disable`.
 
+La conexión desactiva GSSAPI/Kerberos (`GSS Encryption Mode=Disable`) para evitar el aviso de biblioteca `libgssapi_krb5.so.2` en la imagen Linux de .NET. Esto conserva la configuración de SSL. Si el arranque informa un error de bootstrap, comprobar que `Bootstrap__AdminEmail` y `Bootstrap__AdminPassword` estén configuradas juntas y que la contraseña tenga entre 12 y 128 caracteres, sin comillas añadidas. Si el administrador ya fue creado, se pueden quitar ambas variables.
+
 El administrador se crea una sola vez. Reiniciar no cambia su password. Un correo que ya pertenece a un usuario sin rol `SUPER_ADMIN` provoca un error de arranque en vez de promoverlo automáticamente. Después del primer despliegue puedes quitar **ambas** variables de bootstrap. No existe un usuario/password universal ni se almacena el password en el SQL. Desde `users.setRole`, el superadministrador puede convertir otra cuenta en `REGISTRADOR`.
 
 Si más adelante publicas la carpeta exterior completa como un solo repositorio, usar `backendcai/render.yaml` como Blueprint Path y cambiar las rutas del YAML a `dockerfilePath: ./backendcai/Dockerfile` y `dockerContext: ./backendcai`. Para un servicio manual en ese repositorio, usar Root Directory `backendcai`.

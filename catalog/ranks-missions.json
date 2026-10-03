@@ -1,0 +1,866 @@
+{
+  "source": "CAI_Sistema_de_Rangos_y_Misiones.xlsx",
+  "ranks": [
+    {
+      "level": 1,
+      "code": "POSTULANTE",
+      "name": "Postulante",
+      "motto": "«Primum audire»\nPrimero, escuchar",
+      "threshold": 0,
+      "bonus": 0,
+      "requirement": "Ingreso aprobado: entrevista con un Comendador o superior, referencia de un miembro y 30 días de formación inicial.",
+      "functions": "En formación y discernimiento. No sale a misión de campo. Estudio, oración, caridad y las primeras conversaciones dentro de su propia casa.",
+      "shieldDescription": "Un escudo blanco liso con una pequeña cruz templaria roja. Simboliza la pureza de intención y el comienzo del camino: la cruz todavía no domina el campo.",
+      "shieldUrl": "/ranks/POSTULANTE.png"
+    },
+    {
+      "level": 2,
+      "code": "COMPANERO_ARMAS",
+      "name": "Compañero de Armas",
+      "motto": "«Domus prima acies»\nLa casa es el primer frente",
+      "threshold": 1,
+      "bonus": 10,
+      "requirement": "Misión Doméstica: PRX-01 y PRX-02 completadas y validadas.",
+      "functions": "Infantería de la Orden. Su campo es su propia casa y su propio barrio. Puede salir a campo acompañado de un rango 4 o superior.",
+      "shieldDescription": "Dos armas cruzadas, un hacha y una espada, detrás de un escudo con la cruz roja. Refleja su función de infantería inicial: la lucha directa contra el error en el núcleo familiar.",
+      "shieldUrl": "/ranks/COMPANERO_ARMAS.png"
+    },
+    {
+      "level": 3,
+      "code": "ESCUDERO",
+      "name": "Escudero",
+      "motto": "«Proximus meus, prima missio»\nMi prójimo, mi primera misión",
+      "threshold": 101,
+      "bonus": 20,
+      "requirement": "Evangelización de Proximidad: PRX-03 y CAR-01 completadas y validadas.",
+      "functions": "Apoyo doctrinal a la comunidad. Puede abrir fichas de secta en el mapa y salir a la calle acompañado. Primer rango con misiones de contenido.",
+      "shieldDescription": "Un escudo con una lanza recta, flanqueada por una pequeña cruz roja y un báculo religioso. Simboliza el inicio del apoyo doctrinal a la comunidad.",
+      "shieldUrl": "/ranks/ESCUDERO.png"
+    },
+    {
+      "level": 4,
+      "code": "SARGENTO_ARMAS",
+      "name": "Sargento de Armas",
+      "motto": "«Fundamenta teneo»\nSostengo los fundamentos",
+      "threshold": 301,
+      "bonus": 35,
+      "requirement": "Vigilia de Fundamentos: examen integral de Catecismo y Biblia (FOR-03 y los cuatro módulos FOR-04).",
+      "functions": "Mando de escuadra, de dos a tres miembros. Valida misiones de rangos 1 y 2. Primer rango autorizado a debatir, en formato informal.",
+      "shieldDescription": "Un escudo circular dividido en blanco y negro, con una gran cruz roja central. Los dos campos son el estandarte Baucent de la Orden: negro para el mundo, blanco para los hermanos.",
+      "shieldUrl": "/ranks/SARGENTO_ARMAS.png"
+    },
+    {
+      "level": 5,
+      "code": "CABALLERO_TEMPLE",
+      "name": "Caballero del Temple",
+      "motto": "«Non nobis, Domine»\nNo a nosotros, Señor",
+      "threshold": 651,
+      "bonus": 60,
+      "requirement": "Vigilia de Armas: HIT-CAB. Examen doctrinal integral, una misión de campo liderada y tres meses de constancia sin interrupción.",
+      "functions": "Mando de pelotón, hasta ocho miembros. Organiza misiones propias y debates formales. Apadrina escuderos.",
+      "shieldDescription": "Un caballero con armadura completa y manto blanco sobre su caballo de batalla, portando el estandarte Baucent. Primer rango con autoridad para organizar misiones propias y liderar pelotones.",
+      "shieldUrl": "/ranks/CABALLERO_TEMPLE.png"
+    },
+    {
+      "level": 6,
+      "code": "COMENDADOR",
+      "name": "Comendador",
+      "motto": "«Custos doctrinae»\nGuardián de la doctrina",
+      "threshold": 1201,
+      "bonus": 90,
+      "requirement": "Encomienda: HIT-COM. Tres misiones de campo lideradas y una encomienda local activa y sostenida.",
+      "functions": "Mando de encomienda local. Autoriza misiones de campo en su zona y valida evidencias hasta rango 4. Rol ejecutivo.",
+      "shieldDescription": "Un gran castillo de tres torres fortificadas con una cruz roja sobre la torre central. Simboliza la defensa inexpugnable de la sana doctrina y el mando ejecutivo sobre las misiones activas.",
+      "shieldUrl": "/ranks/COMENDADOR.png"
+    },
+    {
+      "level": 7,
+      "code": "PRECEPTOR",
+      "name": "Preceptor",
+      "motto": "«Doce ut credant»\nEnseña para que crean",
+      "threshold": 2001,
+      "bonus": 130,
+      "requirement": "Cátedra: HIT-PRE. Diseñar y dictar un módulo formativo aprobado por el Capítulo.",
+      "functions": "Cátedra de la Orden. Diseña la formación, certifica, supervisa el contenido y las redes. Rol académico, no ejecutivo.",
+      "shieldDescription": "Un libro abierto con una cruz roja en el centro, flanqueado por un báculo de oro y la pluma de la Orden. El libro representa el Catecismo y la Biblia: madurez académica y responsabilidad de formar a los rangos menores.",
+      "shieldUrl": "/ranks/PRECEPTOR.png"
+    },
+    {
+      "level": 8,
+      "code": "MARISCAL",
+      "name": "Mariscal",
+      "motto": "«Ubi mittor, eo»\nDonde me envían, voy",
+      "threshold": 3201,
+      "bonus": 180,
+      "requirement": "Campaña Itinerante: HIT-MAR. Haber sido invitado y haber expuesto en tres congregaciones de otra confesión, en ciudades o barrios distintos.",
+      "functions": "Mando itinerante. Dirige campañas fuera de la ciudad base y representa a la Orden ante otras comunidades.",
+      "shieldDescription": "Dos espadas cruzadas bajo un yelmo de caballero blindado con penacho fluido. Representa la maestría en la estrategia: se gana demostrando capacidad de exponer la fe lejos de casa.",
+      "shieldUrl": "/ranks/MARISCAL.png"
+    },
+    {
+      "level": 9,
+      "code": "SENESCAL",
+      "name": "Senescal",
+      "motto": "«Veritas in caritate»\nLa verdad en la caridad",
+      "threshold": 5001,
+      "bonus": 250,
+      "requirement": "El Gran Debate: HIT-SEN. Organizar y sostener un debate público frente a cinco o más interlocutores simultáneos.",
+      "functions": "Segundo del Gran Maestre. Preside el Capítulo en su ausencia y es última instancia en la validación de evidencias.",
+      "shieldDescription": "Un escudo con la cruz roja, coronado por una mitra y flanqueado por una llave y un báculo. Distintivo de quien ha enfrentado y sostenido el gran debate.",
+      "shieldUrl": "/ranks/SENESCAL.png"
+    },
+    {
+      "level": 10,
+      "code": "GRAN_MAESTRE",
+      "name": "Gran Maestre",
+      "motto": "«Servus servorum veritatis»\nSiervo de los siervos de la verdad",
+      "threshold": 7501,
+      "bonus": 350,
+      "requirement": "Elección por el Capítulo General: HIT-GM. Trayectoria completa, una obra de la Orden fundada y sostenida, y profesión del Voto de Fidelidad. No se alcanza solo por puntos.",
+      "functions": "Cabeza de la Orden. Custodia la regla, el honor y la caridad de la Orden. Único rango electivo.",
+      "shieldDescription": "Un águila bicéfala dorada, emblema de autoridad y de la doble naturaleza de la misión, militar y espiritual, sosteniendo una cruz pattée y un báculo, rodeada por el lema PAUPERES COMMILITONES CHRISTI TEMPLIQUE SALOMONIS (Pobres Compañeros de Cristo del Templo de Salomón).",
+      "shieldUrl": "/ranks/GRAN_MAESTRE.png"
+    }
+  ],
+  "missions": [
+    {
+      "code": "FOR-01",
+      "title": "Completar el curso de introducción a la apologética de la Orden",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 60,
+      "evidence": "Certificado emitido por la Orden",
+      "minimumLevel": 1,
+      "repeat": "Una vez",
+      "monthlyCap": null
+    },
+    {
+      "code": "FOR-02",
+      "title": "Leer un libro de apologética y subir una ficha de una página",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 40,
+      "evidence": "Ficha en PDF: tesis, tres argumentos, tres objeciones",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 120
+    },
+    {
+      "code": "FOR-03",
+      "title": "Aprobar el examen de los 20 versículos clave",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 35,
+      "evidence": "Examen resuelto dentro de la aplicación",
+      "minimumLevel": 1,
+      "repeat": "Una vez",
+      "monthlyCap": null
+    },
+    {
+      "code": "FOR-04",
+      "title": "Aprobar un módulo del Catecismo (I Credo, II Sacramentos, III Vida, IV Oración)",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 45,
+      "evidence": "Examen resuelto dentro de la aplicación",
+      "minimumLevel": 1,
+      "repeat": "4 veces",
+      "monthlyCap": null
+    },
+    {
+      "code": "FOR-05",
+      "title": "Aprobar un módulo de Historia de la Iglesia",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 50,
+      "evidence": "Examen o certificado",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 100
+    },
+    {
+      "code": "FOR-06",
+      "title": "Estudio monográfico de una secta: 10 páginas con fuentes",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 70,
+      "evidence": "Documento en PDF con bibliografía",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 140
+    },
+    {
+      "code": "FOR-07",
+      "title": "Certificación externa en teología, filosofía o Sagrada Escritura",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 150,
+      "evidence": "Certificado de la institución",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "FOR-08",
+      "title": "Curso de oratoria y técnica de debate",
+      "category": "Formación",
+      "area": "El Scriptorium",
+      "points": 80,
+      "evidence": "Certificado del curso",
+      "minimumLevel": 4,
+      "repeat": "Una vez",
+      "monthlyCap": null
+    },
+    {
+      "code": "VIG-01",
+      "title": "Racha de 7 días de oración registrada",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 15,
+      "evidence": "Registro diario en la aplicación",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 60
+    },
+    {
+      "code": "VIG-02",
+      "title": "Confesión del mes",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 20,
+      "evidence": "Autoreporte de honor",
+      "minimumLevel": 1,
+      "repeat": "Mensual",
+      "monthlyCap": 20
+    },
+    {
+      "code": "VIG-03",
+      "title": "Una hora de adoración eucarística",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 15,
+      "evidence": "Autoreporte de honor",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 60
+    },
+    {
+      "code": "VIG-04",
+      "title": "Retiro espiritual de un día o más",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 60,
+      "evidence": "Constancia del retiro o fotografía",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 60
+    },
+    {
+      "code": "VIG-05",
+      "title": "Ayuno ofrecido por una misión concreta de la Orden",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 20,
+      "evidence": "Autoreporte vinculado al código de esa misión",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 40
+    },
+    {
+      "code": "VIG-06",
+      "title": "Rosario semanal por los interlocutores de la Orden",
+      "category": "Vida interior",
+      "area": "La Vigilia",
+      "points": 10,
+      "evidence": "Registro en la aplicación",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 40
+    },
+    {
+      "code": "PRX-01",
+      "title": "Conversación apologética documentada con un familiar",
+      "category": "Proximidad",
+      "area": "Las Primeras Batallas",
+      "points": 30,
+      "evidence": "Bitácora: quién, objeción planteada, respuesta dada, resultado",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 90
+    },
+    {
+      "code": "PRX-02",
+      "title": "Catequesis familiar sostenida durante cuatro semanas",
+      "category": "Proximidad",
+      "area": "Las Primeras Batallas",
+      "points": 70,
+      "evidence": "Bitácora semanal con temas tratados",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 70
+    },
+    {
+      "code": "PRX-03",
+      "title": "Conversación apologética con un vecino o conocido no católico",
+      "category": "Proximidad",
+      "area": "Las Primeras Batallas",
+      "points": 30,
+      "evidence": "Bitácora con el mismo formato",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 90
+    },
+    {
+      "code": "PRX-04",
+      "title": "Acompañar a una persona alejada de vuelta a los sacramentos",
+      "category": "Proximidad",
+      "area": "Las Primeras Batallas",
+      "points": 150,
+      "evidence": "Testimonio escrito y validación de un rango 6 o superior",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "PRX-05",
+      "title": "Inscribir a tres personas en el curso de la Orden",
+      "category": "Proximidad",
+      "area": "Las Primeras Batallas",
+      "points": 40,
+      "evidence": "Registro de inscripción en la plataforma",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 80
+    },
+    {
+      "code": "CAR-01",
+      "title": "Registrar en el mapa una secta local todavía no fichada",
+      "category": "Cartografía",
+      "area": "El Mapa",
+      "points": 45,
+      "evidence": "Ficha completa: nombre, ubicación, doctrina, fotografía de fachada",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 180
+    },
+    {
+      "code": "CAR-02",
+      "title": "Verificar y actualizar una ficha existente",
+      "category": "Cartografía",
+      "area": "El Mapa",
+      "points": 15,
+      "evidence": "Nota de verificación fechada",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 60
+    },
+    {
+      "code": "CAR-03",
+      "title": "Ficha doctrinal comparada: tesis del grupo frente a respuesta católica",
+      "category": "Cartografía",
+      "area": "El Mapa",
+      "points": 70,
+      "evidence": "Documento con fuentes de ambas partes",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 140
+    },
+    {
+      "code": "CAR-04",
+      "title": "Mapeo completo de un barrio o municipio",
+      "category": "Cartografía",
+      "area": "El Mapa",
+      "points": 120,
+      "evidence": "Informe y puntos cargados en el mapa",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 120
+    },
+    {
+      "code": "ESC-01",
+      "title": "Responder una visita de proselitismo en la puerta de casa",
+      "category": "Apologética de campo",
+      "area": "La Escaramuza",
+      "points": 25,
+      "evidence": "Bitácora de la conversación",
+      "minimumLevel": 2,
+      "repeat": "Sí",
+      "monthlyCap": 100
+    },
+    {
+      "code": "ESC-02",
+      "title": "Conversación apologética en la calle o en una plaza",
+      "category": "Apologética de campo",
+      "area": "La Escaramuza",
+      "points": 35,
+      "evidence": "Bitácora y firma del compañero de misión",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 140
+    },
+    {
+      "code": "ESC-03",
+      "title": "Jornada de mesa apologética en vía pública, tres horas",
+      "category": "Apologética de campo",
+      "area": "La Escaramuza",
+      "points": 80,
+      "evidence": "Fotografías de la mesa y bitácora de conversaciones",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 160
+    },
+    {
+      "code": "ESC-04",
+      "title": "Responder objeciones en un espacio público adverso, con mansedumbre documentada",
+      "category": "Apologética de campo",
+      "area": "La Escaramuza",
+      "points": 60,
+      "evidence": "Bitácora y testimonio de un testigo de la Orden",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 120
+    },
+    {
+      "code": "ESC-05",
+      "title": "Acompañar a un hermano de rango menor en su primera salida de campo",
+      "category": "Apologética de campo",
+      "area": "La Escaramuza",
+      "points": 40,
+      "evidence": "Bitácora de ambos",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 120
+    },
+    {
+      "code": "DEB-01",
+      "title": "Debate informal, uno contra uno, con un creyente de otra confesión",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 60,
+      "evidence": "Grabación con consentimiento, o acta firmada por ambos",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 180
+    },
+    {
+      "code": "DEB-02",
+      "title": "Debate formal público, uno contra uno, con un pastor o líder",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 150,
+      "evidence": "Grabación completa del debate",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "DEB-03",
+      "title": "Debate formal frente a dos o más interlocutores",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 220,
+      "evidence": "Grabación completa del debate",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "DEB-04",
+      "title": "Exponer en el templo o local de otra confesión, por invitación escrita",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 250,
+      "evidence": "Grabación y copia de la invitación",
+      "minimumLevel": 6,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "DEB-05",
+      "title": "Moderar un debate de la Orden",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 90,
+      "evidence": "Grabación y acta de moderación",
+      "minimumLevel": 6,
+      "repeat": "Sí",
+      "monthlyCap": 180
+    },
+    {
+      "code": "DEB-06",
+      "title": "Sostener un debate frente a cinco o más interlocutores simultáneos",
+      "category": "Debate",
+      "area": "El Campo de Batalla",
+      "points": 400,
+      "evidence": "Grabación completa y acta del Capítulo",
+      "minimumLevel": 8,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "HER-01",
+      "title": "Publicar una pieza apologética breve: post, reel o hilo",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 20,
+      "evidence": "Enlace público a la publicación",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 120
+    },
+    {
+      "code": "HER-02",
+      "title": "Publicar un vídeo apologético de más de cinco minutos",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 50,
+      "evidence": "Enlace público al vídeo",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 150
+    },
+    {
+      "code": "HER-03",
+      "title": "Publicar un artículo o ensayo apologético",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 70,
+      "evidence": "Enlace o PDF publicado",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 140
+    },
+    {
+      "code": "HER-04",
+      "title": "Completar una serie de ocho piezas sobre un mismo tema",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 140,
+      "evidence": "Enlaces a las ocho piezas",
+      "minimumLevel": 4,
+      "repeat": "Sí",
+      "monthlyCap": 140
+    },
+    {
+      "code": "HER-05",
+      "title": "Bono: una pieza supera las 10.000 visualizaciones",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 100,
+      "evidence": "Captura de las métricas",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": 200
+    },
+    {
+      "code": "HER-06",
+      "title": "Subir a la Orden un debate editado y con sus fichas de respuesta",
+      "category": "Contenido y difusión",
+      "area": "El Heraldo",
+      "points": 90,
+      "evidence": "Enlace al vídeo y fichas en PDF",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": 180
+    },
+    {
+      "code": "PRE-01",
+      "title": "Dictar una charla formativa a miembros de la Orden",
+      "category": "Formación de otros",
+      "area": "La Preceptoría",
+      "points": 70,
+      "evidence": "Grabación o acta con lista de asistentes",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": 210
+    },
+    {
+      "code": "PRE-02",
+      "title": "Apadrinar a un Postulante hasta que alcance el rango de Escudero",
+      "category": "Formación de otros",
+      "area": "La Preceptoría",
+      "points": 180,
+      "evidence": "Progreso verificado del apadrinado en la plataforma",
+      "minimumLevel": 6,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "PRE-03",
+      "title": "Diseñar un módulo de formación aprobado por el Capítulo",
+      "category": "Formación de otros",
+      "area": "La Preceptoría",
+      "points": 200,
+      "evidence": "Material completo y acta de aprobación",
+      "minimumLevel": 7,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "PRE-04",
+      "title": "Validar y certificar diez misiones de rangos menores",
+      "category": "Formación de otros",
+      "area": "La Preceptoría",
+      "points": 60,
+      "evidence": "Registro de validaciones en la plataforma",
+      "minimumLevel": 7,
+      "repeat": "Sí",
+      "monthlyCap": 180
+    },
+    {
+      "code": "EST-01",
+      "title": "Organizar una misión de la Orden: convocatoria, logística y cierre",
+      "category": "Mando y organización",
+      "area": "El Estandarte",
+      "points": 80,
+      "evidence": "Informe de misión con asistentes y resultado",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": 240
+    },
+    {
+      "code": "EST-02",
+      "title": "Comandar un pelotón en una jornada de campo, tres miembros o más",
+      "category": "Mando y organización",
+      "area": "El Estandarte",
+      "points": 100,
+      "evidence": "Informe firmado por los miembros del pelotón",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": 200
+    },
+    {
+      "code": "EST-03",
+      "title": "Organizar un debate público completo",
+      "category": "Mando y organización",
+      "area": "El Estandarte",
+      "points": 200,
+      "evidence": "Informe de organización y grabación del debate",
+      "minimumLevel": 6,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "EST-04",
+      "title": "Fundar y sostener una encomienda local durante seis meses",
+      "category": "Mando y organización",
+      "area": "El Estandarte",
+      "points": 350,
+      "evidence": "Informe semestral y registro de miembros activos",
+      "minimumLevel": 7,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "EST-05",
+      "title": "Organizar una campaña itinerante en otra ciudad",
+      "category": "Mando y organización",
+      "area": "El Estandarte",
+      "points": 300,
+      "evidence": "Informe de campaña con resultados y asistentes",
+      "minimumLevel": 8,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "HOS-01",
+      "title": "Obra de misericordia corporal documentada",
+      "category": "Caridad",
+      "area": "La Hospitalidad",
+      "points": 25,
+      "evidence": "Bitácora: qué se hizo, a quién, cuándo",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 100
+    },
+    {
+      "code": "HOS-02",
+      "title": "Jornada de servicio a pobres o enfermos, cuatro horas",
+      "category": "Caridad",
+      "area": "La Hospitalidad",
+      "points": 50,
+      "evidence": "Fotografías y bitácora de la jornada",
+      "minimumLevel": 1,
+      "repeat": "Sí",
+      "monthlyCap": 150
+    },
+    {
+      "code": "HOS-03",
+      "title": "Acompañamiento sostenido a una persona o familia en necesidad, tres meses",
+      "category": "Caridad",
+      "area": "La Hospitalidad",
+      "points": 150,
+      "evidence": "Bitácora mensual y validación de un rango 6 o superior",
+      "minimumLevel": 3,
+      "repeat": "Sí",
+      "monthlyCap": null
+    },
+    {
+      "code": "HOS-04",
+      "title": "Organizar una obra de caridad de la Orden",
+      "category": "Caridad",
+      "area": "La Hospitalidad",
+      "points": 180,
+      "evidence": "Informe con beneficiarios y participantes",
+      "minimumLevel": 5,
+      "repeat": "Sí",
+      "monthlyCap": null
+    }
+  ],
+  "milestones": [
+    {
+      "code": "HIT-ING",
+      "name": "Aprobación de Ingreso",
+      "level": 1,
+      "requirement": "Entrevista con un Comendador o superior, referencia de un miembro activo y 30 días de formación inicial.",
+      "evidence": "Acta de ingreso firmada",
+      "points": 0
+    },
+    {
+      "code": "HIT-DOM",
+      "name": "La Misión Doméstica",
+      "level": 2,
+      "requirement": "PRX-01 y PRX-02 completadas y validadas. Nadie defiende la fe fuera si no ha empezado por su propia casa.",
+      "evidence": "Bitácoras validadas",
+      "points": 25
+    },
+    {
+      "code": "HIT-PROX",
+      "name": "Evangelización de Proximidad",
+      "level": 3,
+      "requirement": "PRX-03 y CAR-01 completadas y validadas: una conversación con el entorno y una secta local fichada.",
+      "evidence": "Bitácora y ficha en el mapa",
+      "points": 40
+    },
+    {
+      "code": "HIT-FUN",
+      "name": "Vigilia de Fundamentos",
+      "level": 4,
+      "requirement": "FOR-03 y los cuatro módulos de FOR-04 aprobados. Examen integral de Catecismo y Biblia.",
+      "evidence": "Exámenes aprobados en la plataforma",
+      "points": 60
+    },
+    {
+      "code": "HIT-CAB",
+      "name": "Vigilia de Armas",
+      "level": 5,
+      "requirement": "Examen doctrinal integral, una misión de campo liderada y tres meses consecutivos de actividad sin interrupción. Se profesa ante el Capítulo.",
+      "evidence": "Acta de armadura firmada por un rango 7 o superior",
+      "points": 100
+    },
+    {
+      "code": "HIT-COM",
+      "name": "La Encomienda",
+      "level": 6,
+      "requirement": "Tres misiones de campo lideradas (EST-02) y una encomienda local activa y sostenida.",
+      "evidence": "Informes de misión y registro de la encomienda",
+      "points": 150
+    },
+    {
+      "code": "HIT-PRE",
+      "name": "La Cátedra",
+      "level": 7,
+      "requirement": "Diseñar y dictar un módulo formativo aprobado por el Capítulo (PRE-03 y PRE-01).",
+      "evidence": "Material aprobado y grabación de la clase",
+      "points": 200
+    },
+    {
+      "code": "HIT-MAR",
+      "name": "La Campaña Itinerante",
+      "level": 8,
+      "requirement": "Haber sido invitado y haber expuesto en tres congregaciones de otra confesión, en ciudades o barrios distintos (DEB-04 x3).",
+      "evidence": "Tres invitaciones escritas y tres grabaciones",
+      "points": 300
+    },
+    {
+      "code": "HIT-SEN",
+      "name": "El Gran Debate",
+      "level": 9,
+      "requirement": "Organizar y sostener un debate público frente a cinco o más interlocutores simultáneos (DEB-06).",
+      "evidence": "Grabación completa y acta del Capítulo",
+      "points": 400
+    },
+    {
+      "code": "HIT-GM",
+      "name": "Elección del Capítulo General",
+      "level": 10,
+      "requirement": "Trayectoria completa, una obra de la Orden fundada y sostenida, y profesión del Voto de Fidelidad. No es una misión: es una elección.",
+      "evidence": "Acta de elección del Capítulo General",
+      "points": 0
+    }
+  ],
+  "rules": [
+    {
+      "code": "R-01",
+      "name": "La regla de oro",
+      "requirement": "Toda misión se hace y se reporta con mansedumbre y respeto (1 Pe 3,15). Un reporte con burla, desprecio o engaño se rechaza y resta 20 puntos.",
+      "enforcement": "Casilla obligatoria antes de enviar el reporte. El validador puede rechazar y restar."
+    },
+    {
+      "code": "R-02",
+      "name": "Ningún punto por riesgo",
+      "requirement": "Ninguna misión otorga puntos por riesgo físico, por entrar en propiedad privada sin invitación, ni por actuar de noche o a solas en un lugar inseguro.",
+      "enforcement": "El formulario no admite misiones de campo entre las 20:00 y las 06:00 ni sin compañero registrado."
+    },
+    {
+      "code": "R-03",
+      "name": "Consentimiento para grabar",
+      "requirement": "Prohibido grabar a una persona sin su consentimiento explícito. Sin consentimiento, la evidencia válida es la bitácora escrita, nunca el vídeo.",
+      "enforcement": "Al subir audio o vídeo, casilla obligatoria de consentimiento. Sin ella, solo se admite bitácora."
+    },
+    {
+      "code": "R-04",
+      "name": "Nunca con menores ni con vulnerables",
+      "requirement": "No se aborda a menores de edad. No se aborda con fines de debate a personas en duelo, en crisis o enfermas.",
+      "enforcement": "Advertencia fija en el formulario de campo. Reporte que mencione menores pasa a revisión del admin."
+    },
+    {
+      "code": "R-05",
+      "name": "Miembros menores de edad",
+      "requirement": "Un miembro menor de 18 años solo hace misiones de Formación, Vigilia y Hospitalidad, con consentimiento de sus padres, y nunca sale a campo sin un adulto de rango 5 o superior.",
+      "enforcement": "Fecha de nacimiento en el perfil. Si es menor, el catálogo solo muestra FOR, VIG y HOS."
+    },
+    {
+      "code": "R-06",
+      "name": "Contra el error, nunca contra la persona",
+      "requirement": "Prohibido publicar el nombre, la fotografía o la dirección de un interlocutor sin su permiso escrito.",
+      "enforcement": "El campo de nombre del interlocutor es opcional y nunca público. Las fichas se guardan anonimizadas."
+    },
+    {
+      "code": "R-07",
+      "name": "Nunca solo",
+      "requirement": "No hay misión de campo en solitario. Mínimo dos miembros, siempre.",
+      "enforcement": "Campo obligatorio: compañero de misión, elegido de la lista de miembros."
+    },
+    {
+      "code": "R-08",
+      "name": "Invitación escrita",
+      "requirement": "Toda misión en local ajeno exige invitación por escrito. Sin invitación no hay misión ni puntos.",
+      "enforcement": "DEB-04 y EST-05 exigen adjuntar la invitación escrita antes de poder enviarse."
+    },
+    {
+      "code": "R-09",
+      "name": "Evidencia falsa",
+      "requirement": "Evidencia falsa o inflada: pérdida de todos los puntos del mes. A la segunda vez, descenso de un rango.",
+      "enforcement": "Botón de rechazo con motivo en el panel del validador. Resta automática y aviso al admin."
+    },
+    {
+      "code": "R-10",
+      "name": "La caridad es obligatoria",
+      "requirement": "Desde el rango 4, ningún miembro asciende sin al menos una misión de Hospitalidad validada en los últimos tres meses.",
+      "enforcement": "Bloqueo de ascenso desde el rango 4 si no hay misión HOS validada en los últimos 90 días."
+    },
+    {
+      "code": "R-11",
+      "name": "Inactividad",
+      "requirement": "A los 60 días sin misión, la plataforma avisa al administrador para que contacte al miembro. A los 120 días, pasa a reserva: el rango se congela y no se pierden puntos.",
+      "enforcement": "Alerta automática al admin a los 60 días. Cambio de estado a Reserva a los 120."
+    },
+    {
+      "code": "R-12",
+      "name": "El rango no es mérito propio",
+      "requirement": "El rango obliga más de lo que premia. Un rango alto que humilla a un rango bajo pierde su rango.",
+      "enforcement": "Botón de reporte de conducta visible para cualquier rango, que llega directo al Capítulo."
+    }
+  ]
+}

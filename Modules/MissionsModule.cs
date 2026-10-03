@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Cai.Api.Api;
 using Cai.Api.Infrastructure;
 
@@ -5,116 +6,152 @@ namespace Cai.Api.Modules;
 
 public sealed class MissionsModule : IActionHandler
 {
-    public IReadOnlyCollection<string> Actions { get; } = ["missions.list", "missions.assign", "assignments.list", "missions.create", "missions.update", "missions.publish", "missions.archive", "submissions.create", "submissions.list", "submissions.review", "progress.get", "history.get"];
+    public IReadOnlyCollection<string> Actions { get; } = ["missions.list","missions.assign","assignments.list","missions.create","missions.update","missions.publish","missions.archive","submissions.create","submissions.list","submissions.review","progress.get","history.get"];
     public async Task<object> Handle(ApiRequest r, Actor? actor, IDatabase db, CancellationToken ct)
     {
-        var user = actor ?? throw ApiException.Forbidden();
-        user.Active();
-        if (r.Action == "missions.list")
-            return await ModuleQueries.PageProjected(db, r, "api_missions", user.IsAdmin ? "TRUE" : "\"publicationState\"='PUBLISHED' AND CASE \"minimumRankCode\" WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END <= (SELECT CASE rank_code WHEN 'RECRUTA' THEN 0 WHEN 'SOLDADO' THEN 1 WHEN 'CABO' THEN 2 ELSE 3 END FROM users WHERE id=@user)",
-                "v.*, (SELECT json_build_object('id',a.id,'status',coalesce(s.status,'ASSIGNED')) FROM mission_assignments a LEFT JOIN mission_submissions s ON s.mission_id=a.mission_id AND s.user_id=a.user_id WHERE a.mission_id=v.id AND a.user_id=@user) AS \"myAssignment\"", ("user",user.Id));
-        if (r.Action == "assignments.list")
-        {
-            var where = user.IsAdmin ? "TRUE" : "\"userId\"=@user";
-            var args = new List<(string,object?)>();
-            if (!user.IsAdmin) args.Add(("user",user.Id));
-            if (r.Optional("missionId",36) is not null) { where += " AND \"missionId\"=@mission"; args.Add(("mission",r.Id("missionId"))); }
-            return await ModuleQueries.Page(db,r,"api_assignments",where,[..args]);
-        }
-        if (r.Action == "missions.assign")
-        {
-            var missionId = r.Id();
-            await Eligible(db,user,missionId);
-            if (r.File is not null) throw ApiException.Invalid("La asignación no necesita archivo. Súbelo después con submissions.create.");
-            var inserted = await db.Execute("INSERT INTO mission_assignments(mission_id,user_id) VALUES(@mission,@user) ON CONFLICT(mission_id,user_id) DO NOTHING",("mission",missionId),("user",user.Id));
-            var assignment = await db.One("SELECT row_to_json(a)::text FROM api_assignments a WHERE \"missionId\"=@mission AND \"userId\"=@user",("mission",missionId),("user",user.Id)) ?? throw ApiException.Missing();
-            if (inserted > 0) await ModuleQueries.Audit(db,user,r.Action,assignment.GetProperty("id").GetGuid());
-            return assignment;
-        }
-        if (r.Action == "submissions.list")
-        {
-            user.Admin();
-            var status = r.Optional("status",20);
-            if (status is not null && !new[] { "PENDING","APPROVED","REJECTED" }.Contains(status)) throw ApiException.Invalid("Estado inválido.");
-            var where = "TRUE";
-            var args = new List<(string,object?)>();
-            if (status is not null) { where += " AND status=@status"; args.Add(("status",status)); }
-            if (r.Optional("missionId",36) is not null) { where += " AND \"missionId\"=@mission"; args.Add(("mission",r.Id("missionId"))); }
-            return await ModuleQueries.Page(db,r,"api_submissions",where,[..args]);
-        }
-        if (r.Action is "progress.get" or "history.get")
-        {
-            var progress = await db.One("""
-                SELECT json_build_object('rankCode',u.rank_code,'totalBadgeWeight',coalesce((SELECT sum(m.badge_weight) FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=u.id AND s.status='APPROVED'),0),'completedMissionTotal',(SELECT count(*) FROM mission_submissions s WHERE s.user_id=u.id AND s.status='APPROVED'))::text FROM users u WHERE u.id=@user
+        var user=actor ?? throw ApiException.Forbidden(); user.Active();
+        if(r.Action=="missions.list")
+            return await ModuleQueries.PageProjected(db,r,"api_missions",user.IsAdmin ? "TRUE" : "(\"publicationState\"='PUBLISHED' AND EXISTS(SELECT 1 FROM users u JOIN cai_ranks ur ON ur.code=u.rank_code JOIN cai_ranks mr ON mr.code=v.\"minimumRankCode\" JOIN missions mm ON mm.id=v.id WHERE u.id=@user AND (mr.level<=ur.level OR (ur.level=1 AND mm.catalog_code='PRX-02') OR (ur.level=6 AND mm.catalog_code='PRE-03')) AND (u.birth_date IS NULL OR u.birth_date<=CURRENT_DATE-interval '18 years' OR (u.parental_consent AND mm.catalog_code SIMILAR TO '(FOR|VIG|HOS)-%')))) OR EXISTS(SELECT 1 FROM missions own WHERE own.id=v.id AND own.created_by_user_id=@user)",
+                """
+                v.*,(SELECT json_build_object('code',m.catalog_code,'category',m.category,'area',m.area,'evidence',m.evidence_requirement,'repeatLimit',m.repeat_limit,'monthlyCap',m.monthly_cap,'field',m.field_mission,'honorAllowed',m.honor_allowed,'invitationRequired',m.invitation_required) FROM missions m WHERE m.id=v.id) AS rules,
+                (SELECT json_build_object('id',a.id,'status',coalesce((SELECT s.status FROM mission_submissions s WHERE s.mission_id=a.mission_id AND s.user_id=a.user_id ORDER BY s.created_at DESC,s.id DESC LIMIT 1),'ASSIGNED')) FROM mission_assignments a WHERE a.mission_id=v.id AND a.user_id=@user) AS "myAssignment"
                 """,("user",user.Id));
-            if (r.Action == "progress.get") return progress!.Value;
-            return new { completedMissionTotal = progress!.Value.GetProperty("completedMissionTotal").GetInt64(), history = await ModuleQueries.Page(db,r,"api_submission_status","\"userId\"=@user",("user",user.Id)) };
-        }
-        if (r.Action == "submissions.create")
+        if(r.Action=="assignments.list") return await ModuleQueries.Page(db,r,"api_assignments",user.IsAdmin ? "TRUE" : "\"userId\"=@user",user.IsAdmin ? [] : [("user",user.Id)]);
+        if(r.Action=="missions.assign")
         {
-            var missionId = r.Id("missionId");
-            await Eligible(db,user,missionId);
-            // Bloquea la asignación para serializar envíos del mismo usuario/misión.
-            var assignment = await db.One("SELECT json_build_object('id',id)::text FROM mission_assignments WHERE mission_id=@mission AND user_id=@user FOR UPDATE",("mission",missionId),("user",user.Id));
-            if (assignment is null) throw new ApiException(409,"MISSION_NOT_ASSIGNED","Asígnate la misión antes de subir la evidencia.");
-            var existing = await db.One("SELECT json_build_object('id',id,'status',status)::text FROM mission_submissions WHERE mission_id=@mission AND user_id=@user FOR UPDATE", ("mission",missionId),("user",user.Id));
-            if (existing is not null && existing.Value.GetProperty("status").GetString() != "REJECTED")
-                throw new ApiException(409,"SUBMISSION_EXISTS","Ya tienes una evidencia pendiente o aprobada en esta misión.");
-            var fileId = await FilesModule.Store(r,user,db,ct,"MISSION_EVIDENCE");
-            var id = existing?.GetProperty("id").GetGuid() ?? Guid.NewGuid();
-            if (existing is null)
-                await db.Execute("INSERT INTO mission_submissions(id,mission_id,user_id,file_id,submission_note) VALUES(@id,@mission,@user,@file,@note)",("id",id),("mission",missionId),("user",user.Id),("file",fileId),("note",r.Optional("submissionNote",2000)));
-            else
-            {
-                await db.Execute("UPDATE mission_submissions SET file_id=@file,submission_note=@note,status='PENDING',review_note=NULL,reviewed_at=NULL,reviewed_by_user_id=NULL WHERE id=@id",("id",id),("file",fileId),("note",r.Optional("submissionNote",2000)));
-            }
-            return await ModuleQueries.Get(db,user.IsAdmin ? "api_submissions" : "api_submission_status",id);
+            var id=r.Id(); await RankSystem.Eligible(db,user,id);
+            if(r.File is not null) throw ApiException.Invalid("La asignación no requiere archivo.");
+            var n=await db.Execute("INSERT INTO mission_assignments(mission_id,user_id) VALUES(@mission,@user) ON CONFLICT DO NOTHING",("mission",id),("user",user.Id));
+            var a=(await db.One("SELECT json_build_object('id',id,'missionId',mission_id,'userId',user_id,'status',coalesce((SELECT s.status FROM mission_submissions s WHERE s.mission_id=a.mission_id AND s.user_id=a.user_id ORDER BY s.created_at DESC,s.id DESC LIMIT 1),'ASSIGNED'))::text FROM mission_assignments a WHERE mission_id=@mission AND user_id=@user",("mission",id),("user",user.Id)))!.Value;
+            if(n>0) await ModuleQueries.Audit(db,user,r.Action,a.GetProperty("id").GetGuid());
+            return a;
         }
-        user.Admin();
-        if (r.Action == "submissions.review")
+        if(r.Action=="submissions.list")
         {
-            var id = r.Id();
-            var record = await db.One("SELECT json_build_object('userId',user_id)::text FROM mission_submissions WHERE id=@id",("id",id)) ?? throw ApiException.Missing();
-            var target = record.GetProperty("userId").GetGuid();
-            // Serializa aprobaciones para calcular el rango sin perder incrementos concurrentes.
-            await db.Execute("SELECT id FROM users WHERE id=@id FOR UPDATE",("id",target));
-            var status = r.Choice("status","APPROVED","APPROVED","REJECTED");
-            if (await db.Execute("UPDATE mission_submissions SET status=@status,review_note=@note,reviewed_by_user_id=@actor,reviewed_at=now() WHERE id=@id AND status='PENDING'",("status",status),("note",r.Optional("reviewNote",2000)),("actor",user.Id),("id",id)) == 0)
-                throw new ApiException(409,"ALREADY_REVIEWED","La evidencia ya fue revisada.");
-            await db.Execute("""
-                UPDATE users SET rank_code=CASE WHEN p.weight>=20 THEN 'SARGENTO' WHEN p.weight>=10 THEN 'CABO' WHEN p.weight>=3 THEN 'SOLDADO' ELSE 'RECRUTA' END
-                FROM (SELECT coalesce(sum(m.badge_weight),0) AS weight FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=@user AND s.status='APPROVED') p WHERE id=@user
-                """,("user",target));
-            await ModuleQueries.Audit(db,user,r.Action,id);
-            return await ModuleQueries.Get(db,"api_submissions",id);
+            user.Admin(); var where="TRUE"; var args=new List<(string,object?)>();
+            if(r.Optional("status",20) is not null) {where+=" AND v.status=@status"; args.Add(("status",r.Choice("status","PENDING","PENDING","APPROVED","REJECTED")));}
+            if(r.Optional("missionId",36) is not null) {where+=" AND v.\"missionId\"=@mission"; args.Add(("mission",r.Id("missionId")));}
+            return await ModuleQueries.PageProjected(db,r,"api_submissions",where,"v.*,(SELECT json_build_object('moduleCode',s.module_code,'occurredAt',s.occurred_at,'details',s.details,'honorReport',s.honor_report,'pointsAwarded',s.points_awarded) FROM mission_submissions s WHERE s.id=v.id) AS report",[..args]);
         }
-        if (r.Action is "missions.create" or "missions.update")
+        if(r.Action=="progress.get") return await RankSystem.Progress(db,user.Id);
+        if(r.Action=="history.get") return new { completedMissionTotal=await db.Count("SELECT count(*) FROM mission_submissions WHERE user_id=@user AND status='APPROVED'",("user",user.Id)),history=await ModuleQueries.Page(db,r,"api_submission_status","\"userId\"=@user",("user",user.Id)) };
+        if(r.Action=="submissions.create") return await Submit(r,user,db,ct);
+        if(r.Action=="submissions.review") return await Review(r,user,db);
+        if(r.Action is "missions.create" or "missions.update")
         {
-            var id = r.Action == "missions.create" ? Guid.NewGuid() : r.Id();
-            var args = new (string,object?)[] { ("id",id),("title",r.Required("title",180)),("description",r.Required("description",4000)),
-                ("type",r.Choice("missionType","OPERACIONAL","OPERACIONAL","FORMATIVA","ESPIRITUAL")),
-                ("rank",r.Choice("minimumRankCode","RECRUTA","RECRUTA","SOLDADO","CABO","SARGENTO")),
-                ("gender",r.Choice("genderEligibility","ALL","ALL")),("weight",r.Number("badgeWeight",1,1,100)) };
-            if (r.Action == "missions.create")
-                await db.Execute("INSERT INTO missions(id,title,description,mission_type,minimum_rank_code,gender_eligibility,badge_weight,created_by_user_id) VALUES(@id,@title,@description,@type,@rank,@gender,@weight,@actor)",[..args,("actor",user.Id)]);
-            else if (await db.Execute("UPDATE missions SET title=@title,description=@description,mission_type=@type,minimum_rank_code=@rank,gender_eligibility=@gender,badge_weight=@weight WHERE id=@id AND publication_state='DRAFT'",args) == 0)
-                throw new ApiException(409,"INVALID_STATE","Solo se pueden editar borradores existentes.");
-            await ModuleQueries.Audit(db,user,r.Action,id);
-            return await ModuleQueries.Get(db,"api_missions",id);
+            var profile=await RankSystem.Profile(db,user.Id);
+            if(!user.IsAdmin && (profile.GetProperty("level").GetInt32()<5 || profile.GetProperty("reserve").GetBoolean())) throw ApiException.Forbidden();
+            var id=r.Action=="missions.create" ? Guid.NewGuid() : r.Id(); var rank=r.Optional("minimumRankCode",30) ?? "CABALLERO_TEMPLE";
+            if(await db.Count("SELECT count(*) FROM cai_ranks WHERE code=@code",("code",rank))==0) throw ApiException.Invalid("Rango inválido.");
+            var args=new (string,object?)[] {("id",id),("actor",user.Id),("title",r.Required("title",180)),("description",r.Required("description",4000)),("type",r.Choice("missionType","OPERACIONAL","OPERACIONAL","FORMATIVA","ESPIRITUAL")),("rank",rank),("points",r.Number("badgeWeight",1,1,1000)),("field",r.Flag("fieldMission")),("evidence",r.Required("evidenceRequirement",2000))};
+            if(r.Action=="missions.create") await db.Execute("INSERT INTO missions(id,title,description,mission_type,minimum_rank_code,badge_weight,field_mission,evidence_requirement,created_by_user_id,repeat_limit) VALUES(@id,@title,@description,@type,@rank,@points,@field,@evidence,@actor,1)",args);
+            else if(await db.Execute("UPDATE missions SET title=@title,description=@description,mission_type=@type,minimum_rank_code=@rank,badge_weight=@points,field_mission=@field,evidence_requirement=@evidence WHERE id=@id AND publication_state='DRAFT' AND catalog_code IS NULL AND (created_by_user_id=@actor OR @admin)",[..args,("admin",user.IsAdmin)])==0) throw new ApiException(409,"INVALID_STATE","Solo se pueden editar borradores propios; el catálogo oficial conserva las reglas del archivo.");
+            await ModuleQueries.Audit(db,user,r.Action,id); return await ModuleQueries.Get(db,"api_missions",id);
         }
-        var missionToChange = r.Id();
-        var changed = r.Action == "missions.publish"
-            ? await db.Execute("UPDATE missions SET publication_state='PUBLISHED',published_at=now() WHERE id=@id AND publication_state='DRAFT'",("id",missionToChange))
-            : await db.Execute("UPDATE missions SET publication_state='ARCHIVED' WHERE id=@id AND publication_state IN ('DRAFT','PUBLISHED')",("id",missionToChange));
-        if (changed == 0) throw new ApiException(409,"INVALID_STATE","La misión no existe o no admite esta transición.");
-        await ModuleQueries.Audit(db,user,r.Action,missionToChange);
-        return await ModuleQueries.Get(db,"api_missions",missionToChange);
+        user.Admin(); var mission=r.Id();
+        var changed=r.Action=="missions.publish" ? await db.Execute("UPDATE missions SET publication_state='PUBLISHED',published_at=now() WHERE id=@id AND publication_state='DRAFT'",("id",mission)) : await db.Execute("UPDATE missions SET publication_state='ARCHIVED' WHERE id=@id AND publication_state IN('DRAFT','PUBLISHED')",("id",mission));
+        if(changed==0) throw new ApiException(409,"INVALID_STATE","La misión no admite esta transición.");
+        await ModuleQueries.Audit(db,user,r.Action,mission); return await ModuleQueries.Get(db,"api_missions",mission);
     }
-    private static async Task Eligible(IDatabase db, Actor user, Guid missionId)
+    private static async Task<object> Submit(ApiRequest r,Actor user,IDatabase db,CancellationToken ct)
     {
-        var mission = await db.One("SELECT json_build_object('rank',minimum_rank_code)::text FROM missions WHERE id=@id AND publication_state='PUBLISHED' FOR SHARE",("id",missionId)) ?? throw ApiException.Missing();
-        var rank = await db.One("SELECT json_build_object('rank',rank_code)::text FROM users WHERE id=@id",("id",user.Id));
-        var ranks = new[] { "RECRUTA","SOLDADO","CABO","SARGENTO" };
-        if (!user.IsAdmin && Array.IndexOf(ranks,rank!.Value.GetProperty("rank").GetString()) < Array.IndexOf(ranks,mission.GetProperty("rank").GetString())) throw ApiException.Forbidden();
+        var mission=r.Id("missionId"); var m=await RankSystem.Eligible(db,user,mission); var p=await RankSystem.Profile(db,user.Id);
+        if(p.GetProperty("birthDate").ValueKind==JsonValueKind.Null) throw ApiException.Invalid("Completa tu fecha de nacimiento antes de reportar misiones.");
+        if(!r.Flag("respectConfirmed") || !r.Flag("privacyConfirmed")) throw ApiException.Invalid("Confirma el respeto, la privacidad y la anonimización de tu reporte.");
+        var note=r.Required("submissionNote",2000); var honor=r.Flag("honorReport");
+        if(honor && !m.GetProperty("honorAllowed").GetBoolean()) throw ApiException.Invalid("Esta misión exige evidencia verificable.");
+        var url=r.Optional("evidenceUrl",2000);
+        if(url is not null && (!Uri.TryCreate(url,UriKind.Absolute,out var uri) || uri.Scheme!="https" || !string.IsNullOrEmpty(uri.UserInfo))) throw ApiException.Invalid("El enlace de evidencia debe usar HTTPS.");
+        if(r.Flag("recordingIncluded") && !r.Flag("recordingConsent")) throw ApiException.Invalid("Una grabación exige consentimiento explícito. Presenta una bitácora escrita si no lo tienes.");
+        var occurred=ReadTime(r,"occurredAt"); Guid? companion=null;
+        if(m.GetProperty("field").GetBoolean())
+        {
+            companion=r.Id("companionId");
+            if(companion==user.Id || await db.Count("SELECT count(*) FROM users WHERE id=@id AND role='SOLDADO_ACTIVE' AND NOT reserve",("id",companion))==0) throw ApiException.Invalid("Selecciona otro compañero activo.");
+            var local=occurred.ToOffset(TimeSpan.FromHours(-5)); var end=ReadTime(r,"endedAt"); var localEnd=end.ToOffset(TimeSpan.FromHours(-5));
+            if(end<occurred || local.Hour<6 || local.Hour>=20 || localEnd.Hour<6 || localEnd.Hour>=20 || local.Date!=localEnd.Date) throw ApiException.Invalid("Las misiones de campo deben realizarse entre las 06:00 y las 20:00 (America/Lima).");
+            if(!r.Flag("safeFieldConfirmed") || !r.Flag("noVulnerableTargets")) throw ApiException.Invalid("Confirma un entorno seguro, el permiso de acceso y que no se abordó a menores ni personas vulnerables.");
+            var cp=await RankSystem.Profile(db,companion.Value);
+            if(p.GetProperty("level").GetInt32()<=3 && cp.GetProperty("level").GetInt32()<4) throw ApiException.Invalid("Los rangos iniciales necesitan un compañero de rango 4 o superior.");
+        }
+        Guid? invitation=null;
+        if(m.GetProperty("invitationRequired").GetBoolean())
+        {
+            invitation=r.Id("invitationFileId");
+            if(await db.Count("SELECT count(*) FROM files WHERE id=@id AND owner_user_id=@user AND purpose='MISSION_EVIDENCE' AND content_type='application/pdf'",("id",invitation),("user",user.Id))==0) throw ApiException.Invalid("Adjunta antes la invitación escrita en PDF.");
+        }
+        if(await db.Count("SELECT count(*) FROM mission_assignments WHERE mission_id=@mission AND user_id=@user",("mission",mission),("user",user.Id))==0) throw new ApiException(409,"MISSION_NOT_ASSIGNED","Asígnate la misión antes de reportarla.");
+        if(await db.Count("SELECT count(*) FROM mission_submissions WHERE mission_id=@mission AND user_id=@user AND status='PENDING'",("mission",mission),("user",user.Id))>0) throw new ApiException(409,"SUBMISSION_EXISTS","Ya hay un reporte pendiente.");
+        if(m.GetProperty("repeatLimit").ValueKind!=JsonValueKind.Null && await db.Count("SELECT count(*) FROM mission_submissions WHERE mission_id=@mission AND user_id=@user AND status='APPROVED'",("mission",mission),("user",user.Id))>=m.GetProperty("repeatLimit").GetInt32()) throw new ApiException(409,"REPEAT_LIMIT","Ya completaste las repeticiones permitidas.");
+        var code=m.GetProperty("code").GetString(); var module=r.Optional("moduleCode",30);
+        if(code=="FOR-04")
+        {
+            module=r.Choice("moduleCode","","CREDO","SACRAMENTOS","VIDA","ORACION");
+            if(await db.Count("SELECT count(*) FROM mission_submissions WHERE mission_id=@mission AND user_id=@user AND module_code=@module AND status='APPROVED'",("mission",mission),("user",user.Id),("module",module))>0) throw new ApiException(409,"MODULE_COMPLETED","Ese módulo ya está aprobado.");
+        }
+        Guid? file=null; if(r.File is not null) file=await FilesModule.Store(r,user,db,ct,"MISSION_EVIDENCE");
+        if(!honor && file is null && url is null && note.Length<30) throw ApiException.Invalid("Adjunta evidencia o escribe una bitácora detallada de al menos 30 caracteres.");
+        if(code=="VIG-05" && await db.Count("SELECT count(*) FROM missions WHERE id=@id",("id",r.Id("linkedMissionId")))==0) throw ApiException.Invalid("La misión vinculada no existe.");
+        var id=Guid.NewGuid(); var details=JsonSerializer.Serialize(new { evidenceUrl=url,companionId=companion,invitationFileId=invitation,recordingIncluded=r.Flag("recordingIncluded"),recordingConsent=r.Flag("recordingConsent"),respectConfirmed=true,privacyConfirmed=true,safeFieldConfirmed=r.Flag("safeFieldConfirmed"),noVulnerableTargets=r.Flag("noVulnerableTargets"),endedAt=r.Optional("endedAt",40),linkedMissionId=r.Optional("linkedMissionId",36),mentionsMinors=r.Flag("mentionsMinors") });
+        await db.Execute("INSERT INTO mission_submissions(id,mission_id,user_id,file_id,submission_note,module_code,occurred_at,details,honor_report) VALUES(@id,@mission,@user,@file,@note,@module,@at,@details::jsonb,@honor)",("id",id),("mission",mission),("user",user.Id),("file",file),("note",note),("module",module),("at",occurred.ToUniversalTime()),("details",details),("honor",honor));
+        return await ModuleQueries.Get(db,user.IsAdmin ? "api_submissions" : "api_submission_status",id);
+    }
+    private static DateTimeOffset ReadTime(ApiRequest r,string name)
+    {
+        var text=r.Required(name,40);
+        if(!System.Text.RegularExpressions.Regex.IsMatch(text,@"(Z|[+-]\d{2}:\d{2})$") || !DateTimeOffset.TryParse(text,out var value) || value>DateTimeOffset.UtcNow.AddMinutes(5)) throw ApiException.Invalid(name+" debe indicar fecha, hora y zona horaria, sin ser futura.");
+        return value;
+    }
+    private static async Task<object> Review(ApiRequest r,Actor user,IDatabase db)
+    {
+        user.Admin(); var id=r.Id();
+        var s=await db.One("SELECT json_build_object('userId',s.user_id,'missionId',s.mission_id,'honor',s.honor_report,'at',s.occurred_at,'details',s.details,'points',m.badge_weight,'cap',m.monthly_cap,'code',m.catalog_code)::text FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.id=@id",("id",id)) ?? throw ApiException.Missing();
+        var target=s.GetProperty("userId").GetGuid(); await RankSystem.Profile(db,target,true);
+        await RankSystem.Validator(db,user,target,s.GetProperty("code").GetString() is "PRX-04" or "HOS-03" ? 6 : 0);
+        var status=r.Choice("status","APPROVED","APPROVED","REJECTED"); var reason=r.Choice("rejectionReason","OTHER","OTHER","DISRESPECT","FALSE_EVIDENCE");
+        if(status=="REJECTED") r.Required("reviewNote",2000);
+        if(status=="APPROVED" && !r.Flag("requirementsVerified")) throw ApiException.Invalid("Confirma que la evidencia cumple todos los requisitos de la misión.");
+        if(await db.Execute("UPDATE mission_submissions SET status=@status,review_note=@note,reviewed_by_user_id=@actor,reviewed_at=now() WHERE id=@id AND status='PENDING'",("id",id),("status",status),("note",r.Optional("reviewNote",2000)),("actor",user.Id))==0) throw new ApiException(409,"ALREADY_REVIEWED","El reporte ya fue revisado.");
+        var at=s.GetProperty("at").GetDateTimeOffset();
+        if(status=="APPROVED")
+        {
+            var points=s.GetProperty("points").GetDecimal()*(s.GetProperty("honor").GetBoolean() ? .5m : 1m);
+            if(r.Flag("excellent") && !s.GetProperty("honor").GetBoolean()) points*=1.2m;
+            if(r.Flag("teamBonus"))
+            {
+                var details=s.GetProperty("details");
+                if(!details.TryGetProperty("companionId",out var companion) || companion.ValueKind==JsonValueKind.Null) throw ApiException.Invalid("El bono de equipo requiere un compañero registrado.");
+                var cp=await RankSystem.Profile(db,companion.GetGuid()); var tp=await RankSystem.Profile(db,target);
+                if(cp.GetProperty("sponsorId").ValueKind==JsonValueKind.Null || cp.GetProperty("sponsorId").GetGuid()!=target || cp.GetProperty("level").GetInt32()>=tp.GetProperty("level").GetInt32()) throw ApiException.Invalid("El compañero debe ser tu apadrinado y de rango inferior.");
+                points+=15;
+            }
+            if(s.GetProperty("cap").ValueKind!=JsonValueKind.Null)
+            {
+                var spent=(await db.One("SELECT json_build_object('points',coalesce(sum(points_awarded),0))::text FROM mission_submissions WHERE user_id=@user AND mission_id=@mission AND status='APPROVED' AND id<>@id AND date_trunc('month',occurred_at AT TIME ZONE 'America/Lima')=date_trunc('month',@at::timestamptz AT TIME ZONE 'America/Lima')",("user",target),("mission",s.GetProperty("missionId").GetGuid()),("id",id),("at",at.ToUniversalTime())))!.Value.GetProperty("points").GetDecimal();
+                points=Math.Max(0,Math.Min(points,s.GetProperty("cap").GetDecimal()-spent));
+            }
+            await db.Execute("UPDATE mission_submissions SET points_awarded=@points WHERE id=@id",("id",id),("points",points));
+            await RankSystem.Ledger(db,target,"submission:"+id,"MISSION",points,"Misión "+s.GetProperty("code").GetString(),id,at);
+            if(r.Flag("firstRegistryBonus"))
+            {
+                if(s.GetProperty("code").GetString()!="CAR-01") throw ApiException.Invalid("El bono de primicia corresponde a CAR-01.");
+                var report=r.Id("sectReportId");
+                if(await db.Count("SELECT count(*) FROM sect_reports WHERE id=@id AND reported_by_user_id=@user AND status='APPROVED'",("id",report),("user",target))==0) throw ApiException.Invalid("Se requiere una ficha nueva aprobada del miembro.");
+                if(await db.Count("SELECT count(*) FROM point_ledger WHERE source_key=@key",("key","firstRegistry:"+report))>0) throw ApiException.Invalid("La primicia ya fue premiada.");
+                await RankSystem.Ledger(db,target,"firstRegistry:"+report,"FIRST_REGISTRY",25,"Primera ficha de una secta",id,at);
+            }
+            var weeks=await db.Count("SELECT count(DISTINCT date_trunc('week',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@user AND status='APPROVED' AND NOT honor_report AND occurred_at>=((date_trunc('week',now() AT TIME ZONE 'America/Lima')-interval '3 weeks') AT TIME ZONE 'America/Lima')",("user",target));
+            if(weeks>=4 && await db.Count("SELECT count(*) FROM point_ledger WHERE user_id=@id AND kind='CONSISTENCY' AND created_at>now()-interval '28 days'",("id",target))==0) await RankSystem.Ledger(db,target,"consistency:"+DateTime.UtcNow.ToString("yyyy-MM-dd"),"CONSISTENCY",25,"Cuatro semanas consecutivas con misiones validadas");
+        }
+        else if(reason=="DISRESPECT") await RankSystem.Ledger(db,target,"penalty:"+id,"DISRESPECT",-20,"Reporte irrespetuoso",id);
+        else if(reason=="FALSE_EVIDENCE")
+        {
+            var month=(await db.One("SELECT json_build_object('points',greatest(coalesce(sum(points),0),0))::text FROM point_ledger WHERE user_id=@user AND date_trunc('month',earned_at AT TIME ZONE 'America/Lima')=date_trunc('month',@at::timestamptz AT TIME ZONE 'America/Lima')",("user",target),("at",at.ToUniversalTime())))!.Value.GetProperty("points").GetDecimal();
+            await RankSystem.Ledger(db,target,"false:"+id,"FALSE_EVIDENCE",-month,"Pérdida de los puntos del mes por evidencia falsa",id,at);
+            if(await db.Count("SELECT count(*) FROM point_ledger WHERE user_id=@id AND kind='FALSE_EVIDENCE'",("id",target))>=2)
+                await db.Execute("UPDATE users u SET rank_code=r.code,rank_ceiling=r.level FROM cai_ranks old JOIN cai_ranks r ON r.level=greatest(old.level-1,1) WHERE u.id=@id AND old.code=u.rank_code",("id",target));
+        }
+        await RankSystem.Recalculate(db,target); await ModuleQueries.Audit(db,user,r.Action,id);
+        return await ModuleQueries.Get(db,"api_submissions",id);
     }
 }

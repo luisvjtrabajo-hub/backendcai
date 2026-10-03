@@ -43,6 +43,12 @@ public sealed record ApiRequest(string Action, JsonElement Data, IFormFile? File
             throw ApiException.Invalid($"{name} debe estar entre {min} y {max}.");
         return number;
     }
+    public bool Flag(string name)
+    {
+        if (!Data.TryGetProperty(name,out var value)) return false;
+        if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw ApiException.Invalid($"{name} debe ser booleano.");
+        return value.GetBoolean();
+    }
     public string Choice(string name, string fallback, params string[] choices)
     {
         var value = Optional(name, 100) ?? fallback;

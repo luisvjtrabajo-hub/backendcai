@@ -10,10 +10,18 @@ public static class Bootstrap
     {
         if (config.GetValue("Database:AutoMigrate", true))
         {
+            await using var setup = source.CreateCommand("CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
+            await setup.ExecuteNonQueryAsync(ct);
             foreach (var file in Directory.GetFiles(Path.Combine(contentRoot,"database"),"*.sql").Order(StringComparer.Ordinal))
             {
+                await using var check = source.CreateCommand("SELECT count(*) FROM schema_migrations WHERE name=@name");
+                check.Parameters.AddWithValue("name",Path.GetFileName(file));
+                if (Convert.ToInt64(await check.ExecuteScalarAsync(ct)) > 0) continue;
                 await using var cmd = source.CreateCommand(await File.ReadAllTextAsync(file,ct));
                 await cmd.ExecuteNonQueryAsync(ct);
+                await using var record = source.CreateCommand("INSERT INTO schema_migrations(name) VALUES(@name) ON CONFLICT DO NOTHING");
+                record.Parameters.AddWithValue("name",Path.GetFileName(file));
+                await record.ExecuteNonQueryAsync(ct);
             }
         }
         var email = config["Bootstrap:AdminEmail"];

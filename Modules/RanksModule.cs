@@ -27,7 +27,8 @@ public sealed class RanksModule : IActionHandler
             if(!DateOnly.TryParseExact(birth,"yyyy-MM-dd",out var date) || date>DateOnly.FromDateTime(DateTime.UtcNow) || date<DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-120)) throw ApiException.Invalid("Fecha de nacimiento inválida.");
             if(!user.IsAdmin && await db.Count("SELECT count(*) FROM users WHERE id=@id AND birth_date IS NOT NULL AND birth_date<>@birth",("id",target),("birth",date))>0) throw ApiException.Invalid("Solo el administrador puede corregir una fecha ya registrada.");
             await db.Execute("UPDATE users SET birth_date=@birth WHERE id=@id",("id",target),("birth",date));
-            if(r.Data.TryGetProperty("city",out _)) await db.Execute("UPDATE users SET city=@city WHERE id=@id",("id",target),("city",r.Optional("city",120)));
+            if(r.Data.TryGetProperty("locationId",out _)) await LocationsModule.Save(r,db,target);
+            else if(r.Data.TryGetProperty("city",out _) || r.Data.TryGetProperty("country",out _)) throw ApiException.Invalid("Busca y selecciona la ciudad para actualizar tu ubicación.");
             if(user.IsAdmin)
             {
                 r.Required("reviewNote",2000);

@@ -15,17 +15,17 @@ no vacías de hasta 2000 caracteres por pregunta. Se conserva copia del examen e
 del soldado. VIG-01 exige siete registros consecutivos de oración hasta la fecha
 reportada; VIG-06 un rosario de la semana. Cada período solo se acredita una vez.
 
-`users.list` admite `q`, `rankCode`, `city`, `area` y
+`users.list` admite `q`, `rankCode`, `country`, `city`, `area` y
 `activity=ACTIVE/RESERVE/INACTIVE_60`, además de rol y paginación. Filtra en servidor.
-`profile.update` admite `city` de hasta 120 caracteres. `progress.get` devuelve
-`city`, `sponsor:{id,fullName}` y los puntos por área existentes. Una edición del
+`profile.update` admite `locationId` de una ciudad seleccionada. `progress.get` devuelve
+`city`, `country`, `countryCode`, `locationId`, `sponsor:{id,fullName}` y los puntos por área existentes. Una edición del
 perfil activo no reinicia su plazo de inactividad; reincorporar desde reserva sí.
 
 `certificates.create` admite `kind=COURSE/MILESTONE/ARMOR` y un PDF opcional en
 `file`. `certificates.list` incluye `kind` y `fileId`. Solo un certificado COURSE
 habilita la activación; ninguno reemplaza la validación de los hitos.
 
-Todas las acciones usan `POST /api`. Enviar JSON `{ "action": "nombre.acción", "data": { ... } }`. Todas salvo `auth.register` y `auth.login` requieren `Authorization: Bearer <accessToken>`.
+Todas las acciones usan `POST /api`. Enviar JSON `{ "action": "nombre.acción", "data": { ... } }`. Todas salvo `auth.register`, `auth.login` y `locations.search` requieren `Authorization: Bearer <accessToken>`.
 
 No existe una ruta HTTP por acción. `GET /healthz` se reserva para la plataforma de despliegue.
 
@@ -33,11 +33,13 @@ Las respuestas mantienen los objetos usados por React: listas `{ items, total, p
 
 | Acción | Permiso | `data` |
 | --- | --- | --- |
-| `auth.register` | Público | `email`, `password` (8–128 caracteres), `fullName`, `activationMode?` (`NONE`/`NUMBER`/`REVIEW`), `certificateNumber?`; multipart con archivo si `REVIEW` |
+| `auth.register` | Público | `email`, `password` (8–128 caracteres), `fullName`, `locationId` obligatorio, `activationMode?` (`NONE`/`NUMBER`/`REVIEW`), `certificateNumber?`; multipart con archivo si `REVIEW` |
+| `locations.search` | Público | `q` (2–100 caracteres), `countryCode` ISO de 2 letras; `{items:[{id,city,country,countryCode,region}]}`. Seleccionar `id` como `locationId`; coordenadas verificadas por el backend. |
+| `members.map` | Activo/admin | `country?`, `city?`, `page?`, `pageSize?`; ciudades con coordenadas y `memberCount`, agrupando solo SOLDADO_ACTIVE; sin correos ni datos privados. |
 | `auth.login` | Público | `email`, `password` |
 | `auth.me` | Autenticado | `{}`; devuelve usuario actual |
 | `auth.logout` | Autenticado | `{}`; revoca todas sus sesiones |
-| `members.list` | Activo/admin | `page?`, `pageSize?`; nombres y rangos de miembros activos, sin correo |
+| `members.list` | Activo/admin | `q?`, `rankCode?`, `country?`, `city?`, `page?`, `pageSize?`; nombres, rangos, país y ciudad de miembros activos, sin correo |
 | `users.list` | Admin | `role?`, `page?`, `pageSize?` |
 | `users.activate` | Admin | `id`, `reviewNote?`; aprueba cuenta y su revisión pendiente |
 | `users.deactivate` | Admin | `id`, `reviewNote?`; desactiva y revoca sesiones |

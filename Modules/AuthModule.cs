@@ -26,7 +26,7 @@ public sealed class AuthModule(IConfiguration configuration, CertificatesModule 
     }
     public async Task<object> Handle(ApiRequest r, Actor? actor, IDatabase db, CancellationToken ct)
     {
-        if (r.Action == "auth.me") return await ModuleQueries.Get(db, "api_users", actor!.Id);
+        if (r.Action == "auth.me") return await Profile(db, actor!.Id);
         if (r.Action == "auth.logout")
         {
             // Cierra todas las sesiones del usuario; útil también si pierde un dispositivo.
@@ -41,9 +41,11 @@ public sealed class AuthModule(IConfiguration configuration, CertificatesModule 
         if (r.Action == "auth.register")
         {
             if (password.Length < 8) throw ApiException.Invalid("La contraseña debe tener al menos 8 caracteres.");
+            r.Id("locationId");
             id = Guid.NewGuid();
             await db.Execute("INSERT INTO users(id,email,full_name,password_hash) VALUES(@id,@email,@name,@hash)",
                 ("id", id), ("email", email), ("name", r.Required("fullName", 160)), ("hash", hasher.HashPassword(email, password)));
+            await LocationsModule.Save(r, db, id);
             var activation = r.Choice("activationMode", "NONE", "NONE", "NUMBER", "REVIEW");
             if (activation != "NONE")
             {
@@ -73,7 +75,9 @@ public sealed class AuthModule(IConfiguration configuration, CertificatesModule 
         await db.Execute("DELETE FROM sessions WHERE expires_at<now()");
         await db.Execute("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(@hash,@id,@expiry)",
             ("hash", TokenHash(token)), ("id", id), ("expiry", expiresAt));
-        return new { accessToken = token, expiresAt, user = await ModuleQueries.Get(db, "api_users", id) };
+        return new { accessToken = token, expiresAt, user = await Profile(db, id) };
     }
+    private static async Task<object> Profile(IDatabase db, Guid id) =>
+        (await db.One("SELECT row_to_json(t)::text FROM (SELECT v.*,u.country,u.city,u.location_id AS \"locationId\",l.country_code AS \"countryCode\" FROM api_users v JOIN users u ON u.id=v.id LEFT JOIN city_locations l ON l.id=u.location_id WHERE v.id=@id)t", ("id", id))) ?? throw ApiException.Missing();
     public void Dispose() => attempts.Dispose();
 }

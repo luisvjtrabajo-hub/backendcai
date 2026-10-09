@@ -30,6 +30,12 @@ builder.Services.AddRateLimiter(o =>
     o.OnRejected = async (context,ct) => await context.HttpContext.Response.WriteAsJsonAsync(new { error="RATE_LIMITED", message="Servidor ocupado. Intenta nuevamente en unos segundos." },ct);
 });
 builder.Services.AddSingleton<IActionHandler,AuthModule>();
+builder.Services.AddHttpClient("geocoding", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Locations:BaseUrl"] ?? "https://geocoding-api.open-meteo.com/v1/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddSingleton<IActionHandler,LocationsModule>();
 builder.Services.AddSingleton<IActionHandler,UsersModule>();
 builder.Services.AddSingleton<CertificatesModule>();
 builder.Services.AddSingleton<IActionHandler>(services => services.GetRequiredService<CertificatesModule>());

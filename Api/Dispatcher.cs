@@ -16,7 +16,7 @@ public sealed class Dispatcher(IEnumerable<IActionHandler> handlers)
     {
         if (!routes.TryGetValue(request.Action, out var handler)) throw new ApiException(400, "UNKNOWN_ACTION", "Acción desconocida. Consulta docs/API.md.");
         Actor? actor = null;
-        if (request.Action is not ("auth.login" or "auth.register"))
+        if (request.Action is not ("auth.login" or "auth.register" or "locations.search"))
         {
             var token = authorization?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true ? authorization[7..] : null;
             if (token is null || token.Length != 64) throw new ApiException(401, "UNAUTHORIZED", "Inicia sesión para continuar.");

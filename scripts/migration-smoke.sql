@@ -143,3 +143,21 @@ BEGIN
  IF EXISTS(SELECT 1 FROM missions WHERE catalog_code='FOR-03' AND honor_allowed) THEN RAISE EXCEPTION 'El examen debe exigir respuestas verificables'; END IF;
 END $$;
 SELECT 'OK: migración 009 repetible, configuración y registros preservados' AS resultado;
+CREATE TEMP TABLE before_locations AS SELECT id,city,rank_code,activity_resumed_at FROM users;
+\ir ../database/010_member_locations.sql
+DO $$ BEGIN
+ IF EXISTS(SELECT id,city,rank_code,activity_resumed_at FROM users EXCEPT SELECT * FROM before_locations) THEN RAISE EXCEPTION '010 alteró perfiles existentes'; END IF;
+ IF EXISTS(SELECT 1 FROM users WHERE country IS NOT NULL OR location_id IS NOT NULL) THEN RAISE EXCEPTION '010 inventó ubicaciones existentes'; END IF;
+END $$;
+INSERT INTO city_locations(id,provider_id,country,country_code,city,latitude,longitude)
+ VALUES('00000000-0000-0000-0000-000000000010',3871336,'Chile','CL','Santiago',-33.45694,-70.64827);
+UPDATE users SET country='Chile',city='Santiago',location_id='00000000-0000-0000-0000-000000000010',role='SOLDADO_ACTIVE'
+ WHERE id='00000000-0000-0000-0000-000000000001';
+\ir ../database/010_member_locations.sql
+DO $$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM users WHERE country='Chile' AND city='Santiago' AND location_id='00000000-0000-0000-0000-000000000010') THEN RAISE EXCEPTION '010 perdió la ubicación seleccionada'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM api_member_locations WHERE country='Chile' AND "memberCount"=1 AND latitude=-33.45694) THEN RAISE EXCEPTION 'El mapa no refleja la ubicación'; END IF;
+ IF (SELECT count(*) FROM city_locations)<>1 THEN RAISE EXCEPTION '010 duplicó ciudades'; END IF;
+ IF EXISTS(SELECT id,rank_code,activity_resumed_at FROM users EXCEPT SELECT id,rank_code,activity_resumed_at FROM before_locations) THEN RAISE EXCEPTION '010 cambió rango o inactividad'; END IF;
+END $$;
+SELECT 'OK: migración 010 repetible, ubicaciones preservadas y mapa correcto' AS resultado;

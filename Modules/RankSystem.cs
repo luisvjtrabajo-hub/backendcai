@@ -51,7 +51,7 @@ public static class RankSystem
         await Recalculate(db,id);
         return (await db.One("""
             SELECT json_build_object('rankCode',u.rank_code,'rank',r.data,'reserve',u.reserve,'birthDate',u.birth_date,'parentalConsent',u.parental_consent,
-             'city',u.city,'sponsor',(SELECT json_build_object('id',s.id,'fullName',s.full_name) FROM users s WHERE s.id=u.sponsor_id),
+             'city',u.city,'country',u.country,'locationId',u.location_id,'countryCode',(SELECT country_code FROM city_locations WHERE id=u.location_id),'sponsor',(SELECT json_build_object('id',s.id,'fullName',s.full_name) FROM users s WHERE s.id=u.sponsor_id),
              'totalPoints',greatest(coalesce((SELECT sum(points) FROM point_ledger WHERE user_id=u.id),0),0),
              'totalBadgeWeight',greatest(coalesce((SELECT sum(points) FROM point_ledger WHERE user_id=u.id),0),0),
              'completedMissionTotal',(SELECT count(*) FROM mission_submissions WHERE user_id=u.id AND status='APPROVED'),

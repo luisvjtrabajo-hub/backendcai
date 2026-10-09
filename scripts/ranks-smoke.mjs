@@ -7,9 +7,16 @@ const base = process.env.TEST_API_URL || 'http://localhost:58080';
 if (!['localhost','127.0.0.1'].includes(new URL(base).hostname) || !process.env.TEST_PSQL) throw Error('Local API and TEST_PSQL are required; never run against production.');
 const sql = query => execFileSync(process.env.TEST_PSQL, ['-h','127.0.0.1','-p','55432','-U','cai_test','-d','cai_test','-X','-v','ON_ERROR_STOP=1','-Atq'], {input:query,encoding:'utf8',env:{...process.env,PGOPTIONS:'-c client_min_messages=warning'}}).trim();
 const q = value => `'${String(value).replaceAll("'","''")}'`;
+const locationId = randomUUID();
+const auditLocationId = randomUUID();
+const correctionLocationId = randomUUID();
+for (const [id, city] of [[locationId, 'Ciudad de registro'], [auditLocationId, 'Ciudad auditor?a'], [correctionLocationId, 'Ciudad corregida']]) {
+  sql(`INSERT INTO city_locations(id,provider_id,country,country_code,city,latitude,longitude) VALUES(${q(id)},(SELECT coalesce(min(provider_id),0)-1 FROM city_locations),'Chile','CL',${q(city)},-33.45,-70.65);`);
+}
 let checks=0;
 const verify=(actual,expected,message) => {assert.deepEqual(actual,expected,message); checks++;};
 async function call(action,data={},token,expected=200,file) {
+  if(action==='auth.register') data={locationId,...data};
   const headers=token ? {Authorization:`Bearer ${token}`} : {};
   let body;
   if(file) {body=new FormData();body.append('action',action);body.append('data',JSON.stringify(data));body.append('file',file,file.type==='application/pdf' ? 'act.pdf' : 'proof.png');}
@@ -203,7 +210,7 @@ verify((await call('progress.get',{},u.token)).rankCode,'SARGENTO_ARMAS','Reappl
 const workbookMember=await member();
 await call('learning.update',{exams:testExams},workbookMember.token,403);
 await call('learning.update',{exams:testExams,courseUrl:'http://example.com'},at,400);
-await call('profile.update',{birthDate:'1990-01-01',city:'Ciudad auditor?a'},workbookMember.token);
+await call('profile.update',{birthDate:'1990-01-01',locationId:auditLocationId},workbookMember.token);
 const filtered=await call('users.list',{city:'Ciudad auditor?a',role:'SOLDADO_ACTIVE'},at);
 verify(filtered.items.map(m=>m.id),[workbookMember.id],'City filter uses real profile data');
 const rankFilter=await call('users.list',{city:'Ciudad auditor?a',rankCode:'MARISCAL'},at);
@@ -228,7 +235,7 @@ await call('spiritual.record',{kind:'ROSARY',day:limaDay},workbookMember.token);
 await approve(await submit('VIG-06',workbookMember));
 await call('submissions.create',{...reportData,missionId:missions.get('VIG-06').id},workbookMember.token,409);
 const oldActivity=sql(`UPDATE users SET activity_resumed_at=now()-interval '130 days' WHERE id=${q(workbookMember.id)} RETURNING activity_resumed_at;`);
-await call('profile.update',{userId:workbookMember.id,birthDate:'1990-01-01',city:'Ciudad corregida',reviewNote:'Solo cambio de ciudad'},at);
+await call('profile.update',{userId:workbookMember.id,birthDate:'1990-01-01',locationId:correctionLocationId,reviewNote:'Solo cambio de ciudad'},at);
 verify(sql(`SELECT activity_resumed_at FROM users WHERE id=${q(workbookMember.id)};`),oldActivity,'Editing an active profile does not restart inactivity');
 sql(`INSERT INTO activity_alerts(user_id,last_mission_at,days_inactive) VALUES(${q(workbookMember.id)},now()-interval '130 days',130) ON CONFLICT(user_id) DO UPDATE SET days_inactive=130;`);
 const monitorSource=readFileSync(new URL('../Infrastructure/ActivityMonitor.cs',import.meta.url),'utf8');

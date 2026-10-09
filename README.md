@@ -25,14 +25,15 @@ Ejemplo de registro:
   "data": {
     "email": "persona@example.com",
     "password": "una-contraseña-larga",
-    "fullName": "Nombre Apellido"
+    "fullName": "Nombre Apellido",
+    "locationId": "UUID de la ciudad seleccionada en locations.search"
   }
 }
 ```
 
 El login y el registro devuelven `{ accessToken, expiresAt, user }`. Para las otras operaciones enviar `Authorization: Bearer <accessToken>`. Son **tokens opacos aleatorios**, no JWT; la base guarda solo su SHA-256. Cada solicitud comprueba el rol actual y el vencimiento. La sesión dura 24 horas; `Auth__SessionHours` permite 1–168 horas. El logout revoca todas las sesiones de la cuenta. Las contraseñas usan `PasswordHasher` de ASP.NET Core Identity (PBKDF2 con sal).
 
-El formulario de registro envía el certificado junto a `auth.register` mediante `activationMode=NUMBER` o `REVIEW`. Registro y activación/revisión comparten transacción; un certificado inválido no deja una cuenta parcial que impida reintentar.
+El formulario de registro exige país y una ciudad seleccionada con `locations.search` (pública, sin token), y envía `locationId` y el certificado junto a `auth.register` mediante `activationMode=NUMBER` o `REVIEW`. Registro y activación/revisión comparten transacción; una ubicación o certificado inválidos no dejan una cuenta parcial que impida reintentar. La migración [010_member_locations.sql](database/010_member_locations.sql) incorpora los puntos de apologetas activos por ciudad y filtros por país. Consulta [docs/UBICACIONES.md](docs/UBICACIONES.md).
 
 Arquitectura: `Api/` define contrato y dispatcher; `Modules/` contiene reglas por dominio; `Infrastructure/` encapsula conexiones, transacciones y arranque; `database/` contiene el esquema. `IActionHandler` y `IDatabase` mantienen una interfaz pequeña. El dispatcher usa una lista explícita de acciones; no ejecuta métodos, tablas ni SQL elegidos por el cliente. Cada solicitud usa una transacción y parámetros SQL. Las decisiones administrativas generan una auditoría.
 
@@ -122,7 +123,7 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_schema.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_mission_assignments.sql
 ```
 
-También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql), [database/005_mission_deletion.sql](database/005_mission_deletion.sql), [database/006_users_legacy_rank_code.sql](database/006_users_legacy_rank_code.sql), [database/007_sect_report_coordinates.sql](database/007_sect_report_coordinates.sql), [database/008_users_activity_resumed_at.sql](database/008_users_activity_resumed_at.sql) y [database/009_workbook_features.sql](database/009_workbook_features.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
+También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql), [database/005_mission_deletion.sql](database/005_mission_deletion.sql), [database/006_users_legacy_rank_code.sql](database/006_users_legacy_rank_code.sql), [database/007_sect_report_coordinates.sql](database/007_sect_report_coordinates.sql), [database/008_users_activity_resumed_at.sql](database/008_users_activity_resumed_at.sql) y [database/009_workbook_features.sql](database/009_workbook_features.sql) y [database/010_member_locations.sql](database/010_member_locations.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
 
 ```powershell
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/003_rank_system.sql
@@ -132,6 +133,7 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/006_users_legacy_rank_co
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/007_sect_report_coordinates.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/008_users_activity_resumed_at.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/009_workbook_features.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/010_member_locations.sql
 ```
 
 Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los nueve scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.

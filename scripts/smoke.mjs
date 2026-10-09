@@ -10,6 +10,10 @@ if (!email || !password) throw new Error('Configura TEST_ADMIN_EMAIL y TEST_ADMI
 let checks = 0;
 const verify = (condition, message) => { assert.ok(condition, message); checks++; };
 async function call(action, data = {}, token, expected = 200, file) {
+  if (action === 'auth.register') {
+    if (!process.env.TEST_LOCATION_ID) throw new Error('Configura TEST_LOCATION_ID con una ciudad de la base local de pruebas.');
+    data = { locationId: process.env.TEST_LOCATION_ID, ...data };
+  }
   if (action === 'missions.create' || action === 'missions.update') data = { minimumRankCode:'POSTULANTE',evidenceRequirement:'Archivo verificable',missionType:'FORMATIVA', ...data };
   if (action === 'submissions.create') data = { respectConfirmed:true,privacyConfirmed:true,occurredAt:new Date().toISOString(),submissionNote:expected === 400 ? '' : 'Bitácora detallada de la actividad realizada con respeto.', ...data };
   if (action === 'submissions.review') data = { requirementsVerified:true, ...data };

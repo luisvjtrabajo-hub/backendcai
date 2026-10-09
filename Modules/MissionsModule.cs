@@ -72,7 +72,7 @@ public sealed class MissionsModule : IActionHandler
         var mission=r.Id("missionId"); var m=await RankSystem.Eligible(db,user,mission); var p=await RankSystem.Profile(db,user.Id);
         if(p.GetProperty("birthDate").ValueKind==JsonValueKind.Null) throw ApiException.Invalid("Completa tu fecha de nacimiento antes de reportar misiones.");
         if(!r.Flag("respectConfirmed") || !r.Flag("privacyConfirmed")) throw ApiException.Invalid("Confirma el respeto, la privacidad y la anonimización de tu reporte.");
-        var note=r.Required("submissionNote",2000); var honor=r.Flag("honorReport") || (m.GetProperty("honorAllowed").GetBoolean() && r.File is null && r.Optional("evidenceUrl",2000) is null);
+        var note=r.Required("submissionNote",2000); var honor=r.Flag("honorReport") || (m.GetProperty("code").GetString() is ("VIG-02" or "VIG-03" or "VIG-05") && r.File is null && r.Optional("evidenceUrl",2000) is null);
         if(honor && !m.GetProperty("honorAllowed").GetBoolean()) throw ApiException.Invalid("Esta misión exige evidencia verificable.");
         var url=r.Optional("evidenceUrl",2000);
         if(url is not null && (!Uri.TryCreate(url,UriKind.Absolute,out var uri) || uri.Scheme!="https" || !string.IsNullOrEmpty(uri.UserInfo))) throw ApiException.Invalid("El enlace de evidencia debe usar HTTPS.");
@@ -106,6 +106,15 @@ public sealed class MissionsModule : IActionHandler
             module=r.Choice("moduleCode","","CREDO","SACRAMENTOS","VIDA","ORACION");
             if(await db.Count("SELECT count(*) FROM mission_submissions WHERE mission_id=@mission AND user_id=@user AND module_code=@module AND status='APPROVED'",("mission",mission),("user",user.Id),("module",module))>0) throw new ApiException(409,"MODULE_COMPLETED","Ese módulo ya está aprobado.");
         }
+        var exam = await LearningModule.Exam(r,db,code,module);
+        if(code is "VIG-01" or "VIG-06")
+        {
+            var day=DateOnly.FromDateTime(occurred.ToOffset(TimeSpan.FromHours(-5)).DateTime);
+            if(code=="VIG-01" && await db.Count("SELECT count(*) FROM spiritual_records WHERE user_id=@user AND kind='PRAYER' AND day BETWEEN @day::date-6 AND @day::date",("user",user.Id),("day",day))!=7) throw ApiException.Invalid("VIG-01 requiere siete días consecutivos de oración registrados en la aplicación.");
+            if(code=="VIG-06" && await db.Count("SELECT count(*) FROM spiritual_records WHERE user_id=@user AND kind='ROSARY' AND date_trunc('week',day::timestamp)=date_trunc('week',@day::date::timestamp)",("user",user.Id),("day",day))==0) throw ApiException.Invalid("Registra primero el rosario de esa semana en la aplicación.");
+            var period=code=="VIG-01" ? "day" : "week";
+            if(await db.Count($"SELECT count(*) FROM mission_submissions WHERE user_id=@user AND mission_id=@mission AND status='APPROVED' AND date_trunc('{period}',occurred_at AT TIME ZONE 'America/Lima')=date_trunc('{period}',@day::date::timestamp)",("user",user.Id),("mission",mission),("day",day))>0) throw new ApiException(409,"SPIRITUAL_PERIOD_COMPLETED","Ese registro de oración o rosario ya fue acreditado.");
+        }
         Guid? file=null; if(r.File is not null) file=await FilesModule.Store(r,user,db,ct,"MISSION_EVIDENCE");
         if(!honor && file is null && url is null && note.Length<30) throw ApiException.Invalid("Adjunta evidencia o escribe una bitácora detallada de al menos 30 caracteres.");
         if(code=="VIG-05" && await db.Count("SELECT count(*) FROM missions WHERE id=@id",("id",r.Id("linkedMissionId")))==0) throw ApiException.Invalid("La misión vinculada no existe.");
@@ -114,9 +123,10 @@ public sealed class MissionsModule : IActionHandler
         {
             registry=r.Id("sectReportId");
             if(await db.Count("SELECT count(*) FROM sect_reports WHERE id=@id AND reported_by_user_id=@user AND status='APPROVED' AND latitude IS NOT NULL AND longitude IS NOT NULL",("id",registry),("user",user.Id))==0) throw ApiException.Invalid("CAR-01 exige una ficha propia aprobada, con doctrina y coordenadas en el mapa.");
+            if(await db.Count("SELECT count(*) FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=@user AND s.status='APPROVED' AND m.catalog_code='CAR-01' AND s.details->>'sectReportId'=@registry",("user",user.Id),("registry",registry.Value.ToString()))>0) throw new ApiException(409,"REGISTRY_COMPLETED","Esta ficha ya fue acreditada en CAR-01.");
             if(file is null || await db.Count("SELECT count(*) FROM files WHERE id=@id AND content_type LIKE 'image/%'",("id",file))==0) throw ApiException.Invalid("CAR-01 exige una fotografía de fachada.");
         }
-        var id=Guid.NewGuid(); var details=JsonSerializer.Serialize(new { evidenceUrl=url,companionId=companion,invitationFileId=invitation,sectReportId=registry,recordingIncluded=r.Flag("recordingIncluded"),recordingConsent=r.Flag("recordingConsent"),respectConfirmed=true,privacyConfirmed=true,safeFieldConfirmed=r.Flag("safeFieldConfirmed"),noVulnerableTargets=r.Flag("noVulnerableTargets"),endedAt=r.Optional("endedAt",40),linkedMissionId=r.Optional("linkedMissionId",36),mentionsMinors=r.Flag("mentionsMinors") });
+        var id=Guid.NewGuid(); var details=JsonSerializer.Serialize(new { exam,evidenceUrl=url,companionId=companion,invitationFileId=invitation,sectReportId=registry,recordingIncluded=r.Flag("recordingIncluded"),recordingConsent=r.Flag("recordingConsent"),respectConfirmed=true,privacyConfirmed=true,safeFieldConfirmed=r.Flag("safeFieldConfirmed"),noVulnerableTargets=r.Flag("noVulnerableTargets"),endedAt=r.Optional("endedAt",40),linkedMissionId=r.Optional("linkedMissionId",36),mentionsMinors=r.Flag("mentionsMinors") });
         await db.Execute("INSERT INTO mission_submissions(id,mission_id,user_id,file_id,submission_note,module_code,occurred_at,details,honor_report) VALUES(@id,@mission,@user,@file,@note,@module,@at,@details::jsonb,@honor)",("id",id),("mission",mission),("user",user.Id),("file",file),("note",note),("module",module),("at",occurred.ToUniversalTime()),("details",details),("honor",honor));
         return await ModuleQueries.Get(db,user.IsAdmin ? "api_submissions" : "api_submission_status",id);
     }
@@ -170,7 +180,7 @@ public sealed class MissionsModule : IActionHandler
             await db.Execute("UPDATE mission_submissions SET points_awarded=@points WHERE id=@id",("id",id),("points",points+firstBonus));
             await RankSystem.Ledger(db,target,"submission:"+id,"MISSION",points,"Misión "+s.GetProperty("code").GetString(),id,at);
             if(firstRegistry is not null) await RankSystem.Ledger(db,target,"firstRegistry:"+firstRegistry,"FIRST_REGISTRY",firstBonus,"Primera ficha de una secta",id,at);
-            var weeks=await db.Count("SELECT count(DISTINCT date_trunc('week',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@user AND status='APPROVED' AND NOT honor_report AND occurred_at>=((date_trunc('week',now() AT TIME ZONE 'America/Lima')-interval '3 weeks') AT TIME ZONE 'America/Lima')",("user",target));
+            var weeks=await db.Count("SELECT count(DISTINCT date_trunc('week',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@user AND status='APPROVED' AND occurred_at>=((date_trunc('week',now() AT TIME ZONE 'America/Lima')-interval '3 weeks') AT TIME ZONE 'America/Lima') AND occurred_at<((date_trunc('week',now() AT TIME ZONE 'America/Lima')+interval '1 week') AT TIME ZONE 'America/Lima')",("user",target));
             if(weeks>=4 && await db.Count("SELECT count(*) FROM point_ledger WHERE user_id=@id AND kind='CONSISTENCY' AND created_at>now()-interval '28 days'",("id",target))==0) await RankSystem.Ledger(db,target,"consistency:"+DateTime.UtcNow.ToString("yyyy-MM-dd"),"CONSISTENCY",25,"Cuatro semanas consecutivas con misiones validadas");
         }
         else if(reason=="DISRESPECT") await RankSystem.Ledger(db,target,"penalty:"+id,"DISRESPECT",-20,"Reporte irrespetuoso",id);

@@ -22,11 +22,12 @@ public sealed class RanksModule : IActionHandler
         {
             var target=r.Optional("userId",36) is null ? user.Id : r.Id("userId");
             if(target!=user.Id) user.Admin();
-            await RankSystem.Profile(db,target,true);
+            var previousProfile = await RankSystem.Profile(db,target,true);
             var birth=r.Required("birthDate",10);
             if(!DateOnly.TryParseExact(birth,"yyyy-MM-dd",out var date) || date>DateOnly.FromDateTime(DateTime.UtcNow) || date<DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-120)) throw ApiException.Invalid("Fecha de nacimiento inválida.");
             if(!user.IsAdmin && await db.Count("SELECT count(*) FROM users WHERE id=@id AND birth_date IS NOT NULL AND birth_date<>@birth",("id",target),("birth",date))>0) throw ApiException.Invalid("Solo el administrador puede corregir una fecha ya registrada.");
             await db.Execute("UPDATE users SET birth_date=@birth WHERE id=@id",("id",target),("birth",date));
+            if(r.Data.TryGetProperty("city",out _)) await db.Execute("UPDATE users SET city=@city WHERE id=@id",("id",target),("city",r.Optional("city",120)));
             if(user.IsAdmin)
             {
                 r.Required("reviewNote",2000);
@@ -34,7 +35,7 @@ public sealed class RanksModule : IActionHandler
                 if(sponsor==target || (sponsor is not null && await db.Count("SELECT count(*) FROM users u JOIN cai_ranks rk ON rk.code=u.rank_code WHERE u.id=@id AND u.role='SOLDADO_ACTIVE' AND NOT u.reserve AND rk.level>=5",("id",sponsor))==0)) throw ApiException.Invalid("El padrino debe ser otro miembro activo de rango 5 o superior.");
                 await db.Execute("UPDATE users SET parental_consent=@consent,sponsor_id=@sponsor,reserve=@reserve WHERE id=@id",("id",target),("consent",r.Flag("parentalConsentVerified")),("sponsor",sponsor),("reserve",r.Flag("reserve")));
                 if(r.Flag("liftSanction")) {if(user.Role!="SUPER_ADMIN") throw ApiException.Forbidden(); await db.Execute("UPDATE users SET rank_ceiling=10 WHERE id=@id",("id",target));}
-                if(!r.Flag("reserve")) {await db.Execute("DELETE FROM activity_alerts WHERE user_id=@id",("id",target)); await db.Execute("UPDATE users SET activity_resumed_at=now() WHERE id=@id",("id",target));}
+                if(previousProfile.GetProperty("reserve").GetBoolean() && !r.Flag("reserve")) {await db.Execute("DELETE FROM activity_alerts WHERE user_id=@id",("id",target)); await db.Execute("UPDATE users SET activity_resumed_at=now() WHERE id=@id",("id",target));}
             }
             await ModuleQueries.Audit(db,user,r.Action,target); return await RankSystem.Progress(db,target);
         }
@@ -75,14 +76,14 @@ public sealed class RanksModule : IActionHandler
         if(code=="HIT-ING" && (!r.Flag("interviewVerified") || r.Optional("referenceMemberId",36) is null || r.Id("referenceMemberId")==target || await db.Count("SELECT count(*) FROM users WHERE id=@id AND role='SOLDADO_ACTIVE' AND NOT reserve",("id",r.Id("referenceMemberId")))==0)) throw ApiException.Invalid("Se requiere entrevista y referencia de otro miembro activo.");
         if(code=="HIT-CAB")
         {
-            var months=await db.Count("SELECT count(DISTINCT date_trunc('month',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@id AND status='APPROVED' AND NOT honor_report AND occurred_at>=((date_trunc('month',now() AT TIME ZONE 'America/Lima')-interval '2 months') AT TIME ZONE 'America/Lima')",("id",target));
+            var months=await db.Count("SELECT count(DISTINCT date_trunc('month',occurred_at AT TIME ZONE 'America/Lima')) FROM mission_submissions WHERE user_id=@id AND status='APPROVED' AND occurred_at>=((date_trunc('month',now() AT TIME ZONE 'America/Lima')-interval '2 months') AT TIME ZONE 'America/Lima')",("id",target));
             if(months<3 || !r.Flag("doctrinalExamVerified") || !r.Flag("ledFieldMissionVerified")) throw ApiException.Invalid("Se requieren examen integral, misión liderada y tres meses consecutivos de actividad.");
         }
         if(code=="HIT-COM" && (await RankSystem.Completed(db,target,"EST-02")<3 || !r.Flag("localCommandVerified"))) throw ApiException.Invalid("Se requieren tres EST-02 y una encomienda activa verificada.");
         if(code=="HIT-PRE" && (await RankSystem.Completed(db,target,"PRE-03")==0 || await RankSystem.Completed(db,target,"PRE-01")==0)) throw ApiException.Invalid("Completa PRE-03 y PRE-01.");
         if(code=="HIT-MAR" && (await RankSystem.Completed(db,target,"DEB-04")<3 || !r.Flag("distinctLocationsVerified"))) throw ApiException.Invalid("Se requieren tres DEB-04 en ciudades o barrios distintos.");
-        if(code=="HIT-SEN" && (await RankSystem.Completed(db,target,"DEB-06")==0 || await RankSystem.Completed(db,target,"EST-03")==0)) throw ApiException.Invalid("Completa DEB-06 y la organización del debate EST-03.");
-        if(code=="HIT-GM" && (user.Role!="SUPER_ADMIN" || !r.Flag("chapterElectionVerified") || await RankSystem.Completed(db,target,"EST-04")==0)) throw ApiException.Invalid("Se requiere elección del Capítulo y una obra de la Orden fundada y sostenida (EST-04). El voto no se registra ni otorga puntos.");
+        if(code=="HIT-SEN" && await RankSystem.Completed(db,target,"DEB-06")==0) throw ApiException.Invalid("Completa DEB-06 y acredita la organización del debate en el acta del Capítulo.");
+        if(code=="HIT-GM" && (user.Role!="SUPER_ADMIN" || !r.Flag("chapterElectionVerified") || !r.Flag("foundedWorkVerified"))) throw ApiException.Invalid("Se requiere elección del Capítulo y una obra de la Orden fundada y sostenida, verificadas en el acta. El voto no se registra ni otorga puntos.");
         var file=await FilesModule.Store(r,user,db,ct,"MISSION_EVIDENCE");
         if(await db.Count("SELECT count(*) FROM files WHERE id=@id AND content_type='application/pdf'",("id",file))==0) throw ApiException.Invalid("El acta del hito debe ser un PDF.");
         await db.Execute("INSERT INTO user_milestones(user_id,code,validated_by,file_id,note) VALUES(@user,@code,@actor,@file,@note)",("user",target),("code",code),("actor",user.Id),("file",file),("note",note));

@@ -73,3 +73,73 @@ BEGIN
  IF (SELECT count(*) FROM mission_assignments)<>1 OR (SELECT sum(points) FROM point_ledger)<>1 THEN RAISE EXCEPTION 'Eliminar alteró el historial'; END IF;
 END $$;
 SELECT 'OK: eliminación lógica, catálogo sin restauraciones y migración 005 repetible' AS resultado;
+
+-- Simulate a recorded 003 migration without the map columns (test database only).
+INSERT INTO sect_reports(id,sect_name,location_description,reference_note,reported_by_user_id,status)
+ VALUES('00000000-0000-0000-0000-000000000006','Ficha de prueba','Ubicación pública de prueba','Prueba de reparación del mapa','00000000-0000-0000-0000-000000000001','APPROVED');
+ALTER TABLE sect_reports DROP COLUMN latitude;
+ALTER TABLE sect_reports DROP COLUMN longitude;
+\ir ../database/007_sect_report_coordinates.sql
+DO $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM sect_reports WHERE id='00000000-0000-0000-0000-000000000006' AND status='APPROVED' AND latitude IS NULL AND longitude IS NULL) THEN RAISE EXCEPTION 'La reparación debe conservar la ficha sin inventar coordenadas'; END IF;
+ -- Same projection used by sectRegistry.list for the dashboard map.
+ PERFORM v.*,(SELECT latitude FROM sect_reports WHERE id=v.id) AS latitude,(SELECT longitude FROM sect_reports WHERE id=v.id) AS longitude FROM api_sect_reports v WHERE status='APPROVED';
+END $$;
+UPDATE sect_reports SET latitude=-33.45,longitude=-70.66 WHERE id='00000000-0000-0000-0000-000000000006';
+\ir ../database/007_sect_report_coordinates.sql
+DO $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM sect_reports WHERE id='00000000-0000-0000-0000-000000000006' AND latitude=-33.45 AND longitude=-70.66 AND status='APPROVED') THEN RAISE EXCEPTION 'Repetir la reparación alteró las coordenadas o el estado'; END IF;
+ IF (SELECT count(*) FROM schema_migrations WHERE name='007_sect_report_coordinates.sql')<>1 THEN RAISE EXCEPTION 'La reparación de coordenadas debe registrarse una sola vez'; END IF;
+ BEGIN
+  UPDATE sect_reports SET latitude=90 WHERE id='00000000-0000-0000-0000-000000000006';
+  RAISE EXCEPTION 'Se permitió una latitud fuera del mapa';
+ EXCEPTION WHEN check_violation THEN NULL;
+ END;
+ BEGIN
+  UPDATE sect_reports SET longitude=181 WHERE id='00000000-0000-0000-0000-000000000006';
+  RAISE EXCEPTION 'Se permitió una longitud fuera del mapa';
+ EXCEPTION WHEN check_violation THEN NULL;
+ END;
+END $$;
+SELECT 'OK: coordenadas reparadas, consulta del mapa válida, límites y datos conservados' AS resultado;
+
+-- Simulate the missing field reported by ActivityMonitor (test database only).
+ALTER TABLE users DROP COLUMN activity_resumed_at;
+\ir ../database/008_users_activity_resumed_at.sql
+DO $$
+BEGIN
+ IF EXISTS(SELECT 1 FROM users WHERE activity_resumed_at IS DISTINCT FROM created_at) THEN RAISE EXCEPTION 'La reparación debe usar la creación sin reiniciar el reloj de inactividad'; END IF;
+ -- Exercise the activity calculation used by ActivityMonitor.
+ PERFORM u.id,greatest(coalesce(max(s.occurred_at) FILTER(WHERE s.status='APPROVED'),u.created_at),u.activity_resumed_at)
+ FROM users u LEFT JOIN mission_submissions s ON s.user_id=u.id WHERE u.role='SOLDADO_ACTIVE' GROUP BY u.id;
+END $$;
+UPDATE users SET activity_resumed_at='2020-01-01T00:00:00Z' WHERE id='00000000-0000-0000-0000-000000000001';
+\ir ../database/008_users_activity_resumed_at.sql
+DO $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM users WHERE id='00000000-0000-0000-0000-000000000001' AND activity_resumed_at='2020-01-01T00:00:00Z'::timestamptz AND rank_code='ESCUDERO') THEN RAISE EXCEPTION 'Repetir la reparación alteró la fecha o el rango'; END IF;
+ IF (SELECT count(*) FROM schema_migrations WHERE name='008_users_activity_resumed_at.sql')<>1 THEN RAISE EXCEPTION 'La reparación de inactividad debe registrarse una sola vez'; END IF;
+ INSERT INTO users(email,full_name,password_hash) VALUES('activity-default-test@example.com','Prueba de fecha de actividad','solo-pruebas');
+ IF NOT EXISTS(SELECT 1 FROM users WHERE email='activity-default-test@example.com' AND activity_resumed_at=now()) THEN RAISE EXCEPTION 'Las cuentas nuevas requieren fecha de actividad por defecto'; END IF;
+ BEGIN
+  UPDATE users SET activity_resumed_at=NULL WHERE email='activity-default-test@example.com';
+  RAISE EXCEPTION 'Se permitió una fecha de actividad nula';
+ EXCEPTION WHEN not_null_violation THEN NULL;
+ END;
+END $$;
+SELECT 'OK: fecha de actividad reparada, cálculo válido, repetición y restricciones conservadas' AS resultado;
+\ir ../database/009_workbook_features.sql
+UPDATE learning_settings SET course_url='https://example.com/test-course',exams='{"CREDO":["Pregunta de prueba"]}' WHERE id=1;
+INSERT INTO spiritual_records(user_id,kind,day) VALUES('00000000-0000-0000-0000-000000000001','PRAYER',CURRENT_DATE);
+UPDATE users SET city='Ciudad de prueba' WHERE id='00000000-0000-0000-0000-000000000001';
+\ir ../database/009_workbook_features.sql
+DO $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM learning_settings WHERE course_url='https://example.com/test-course' AND exams->'CREDO'='["Pregunta de prueba"]'::jsonb) THEN RAISE EXCEPTION 'Se perdió la configuración educativa'; END IF;
+ IF (SELECT count(*) FROM spiritual_records)<>1 THEN RAISE EXCEPTION 'Se alteró el registro espiritual'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM users WHERE city='Ciudad de prueba') THEN RAISE EXCEPTION 'Se perdió la ciudad'; END IF;
+ IF EXISTS(SELECT 1 FROM missions WHERE catalog_code='FOR-03' AND honor_allowed) THEN RAISE EXCEPTION 'El examen debe exigir respuestas verificables'; END IF;
+END $$;
+SELECT 'OK: migración 009 repetible, configuración y registros preservados' AS resultado;

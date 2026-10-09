@@ -122,20 +122,27 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_schema.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_mission_assignments.sql
 ```
 
-También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql), [database/005_mission_deletion.sql](database/005_mission_deletion.sql) y [database/006_users_legacy_rank_code.sql](database/006_users_legacy_rank_code.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
+También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql), [database/005_mission_deletion.sql](database/005_mission_deletion.sql), [database/006_users_legacy_rank_code.sql](database/006_users_legacy_rank_code.sql), [database/007_sect_report_coordinates.sql](database/007_sect_report_coordinates.sql), [database/008_users_activity_resumed_at.sql](database/008_users_activity_resumed_at.sql) y [database/009_workbook_features.sql](database/009_workbook_features.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
 
 ```powershell
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/003_rank_system.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/004_catalog.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/005_mission_deletion.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/006_users_legacy_rank_code.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/007_sect_report_coordinates.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/008_users_activity_resumed_at.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/009_workbook_features.sql
 ```
 
-Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los seis scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.
+Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los nueve scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.
 
 Si `users.list` falla con `42703: column u.legacy_rank_code does not exist`, aplica `006_users_legacy_rank_code.sql` o despliega el backend actualizado con migraciones automáticas habilitadas. La migración agrega únicamente la columna faltante y conserva los valores existentes. Una columna nueva queda en `NULL`: no es posible reconstruir el rango histórico usando el rango actual. No borres registros de `schema_migrations` para forzar la repetición de migraciones anteriores.
 
 Los errores de columnas o tablas faltantes responden `DATABASE_SCHEMA_MISMATCH` (HTTP 500); otras consultas PostgreSQL fallidas responden `DATABASE_QUERY_ERROR`. `DATABASE_UNAVAILABLE` (HTTP 503) queda reservado para fallas del proveedor/conexión. El detalle SQL permanece en los logs del servidor, asociado al `traceId`.
+
+Si el mapa de Despliegue Global falla y los logs de `sectRegistry.list` indican que falta `latitude` o `longitude`, aplica `007_sect_report_coordinates.sql` o despliega el backend actualizado con `Database__AutoMigrate=true`. La migración conserva las fichas y las coordenadas existentes; las ubicaciones desconocidas quedan en `NULL` y no generan marcadores. Si falta otra columna o tabla, revisa el error exacto antes de elegir la reparación.
+
+Si `ActivityMonitor` falla con `42703: column u.activity_resumed_at does not exist`, aplica [database/008_users_activity_resumed_at.sql](database/008_users_activity_resumed_at.sql) o despliega el backend actualizado con `Database__AutoMigrate=true`. Conserva las fechas existentes y utiliza `created_at` para las cuentas sin fecha de reanudación conocida; las cuentas nuevas usan `now()`. No reinicia el reloj de inactividad al aplicar la reparación. Este log pertenece al monitor de inactividad; para diagnosticar el mapa busca `Error de API` y la excepción de `ReportsModule`.
 
 En Misiones, los administradores disponen de **Eliminar misión**, con confirmación. La misión se retira del catálogo y bloquea nuevas asignaciones/reportes; conserva las evidencias, el historial y los puntos obtenidos. Las misiones oficiales eliminadas no vuelven a aparecer al reiniciar o importar el catálogo.
 
@@ -188,3 +195,9 @@ Para comprobar la actualización desde el primer esquema, ejecutar `psql "$env:D
 En una red sin acceso a NuGet, se puede compilar usando los paquetes ya disponibles y `-p:NuGetAudit=false --ignore-failed-sources`; eso **omite únicamente la consulta de vulnerabilidades durante esa verificación local**. El Dockerfile conserva la auditoría y el lockfile para el despliegue.
 
 Referencias oficiales: [.NET y soporte LTS](https://dotnet.microsoft.com/en-us/platform/support/policy), [Docker en Render](https://render.com/docs/docker), [Blueprints](https://render.com/docs/blueprint-spec), [PostgreSQL en Render](https://render.com/docs/postgresql-creating-connecting).
+
+## Auditoría del XLSX
+
+Consulta [docs/AUDITORIA_XLSX.md](docs/AUDITORIA_XLSX.md). La migración `009_workbook_features.sql` incorpora formación configurable, registros privados de oración/rosario, ciudad y certificados de curso/hito/armadura. El dashboard permite configurar preguntas y enlaces; las misiones FOR-03/FOR-04 se responden en la app y exigen revisión. Las preguntas y URLs no están en el XLSX y el usuario confirmó que aún no dispone de ellas; se muestran pendientes, sin contenido inventado.
+
+Verificar fuente con `python scripts/verify-workbook.py`; compilar backend/frontend y ejecutar `scripts/migration-smoke.sql`, `scripts/smoke.mjs` y `scripts/ranks-smoke.mjs` únicamente en una base local aislada.

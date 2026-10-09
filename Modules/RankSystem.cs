@@ -40,7 +40,7 @@ public static class RankSystem
             var total=(await db.One("SELECT json_build_object('points',greatest(coalesce(sum(points),0),0))::text FROM point_ledger WHERE user_id=@id",("id",id)))!.Value.GetProperty("points").GetDecimal();
             if(total < rank.GetProperty("threshold").GetDecimal() || await db.Count("SELECT count(*) FROM user_milestones u JOIN cai_milestones h ON h.code=u.code WHERE u.user_id=@id AND h.level=@level",("id",id),("level",next))==0) break;
             if(await db.Count("SELECT count(*) FROM user_milestones WHERE user_id=@id AND code='HIT-ING'",("id",id))==0) break;
-            if(next>=4 && await db.Count("SELECT count(*) FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=@id AND s.status='APPROVED' AND NOT s.honor_report AND m.catalog_code LIKE 'HOS-%' AND s.occurred_at>=now()-interval '90 days'",("id",id))==0) break;
+            if(next>=4 && await db.Count("SELECT count(*) FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=@id AND s.status='APPROVED' AND m.catalog_code LIKE 'HOS-%' AND s.occurred_at>=now()-interval '90 days'",("id",id))==0) break;
             await db.Execute("UPDATE users SET rank_code=@code WHERE id=@id",("id",id),("code",rank.GetProperty("code").GetString()));
             await Ledger(db,id,"promotion:"+next,"PROMOTION",rank.GetProperty("bonus").GetDecimal(),"Ascenso a "+rank.GetProperty("name").GetString());
         }
@@ -51,6 +51,7 @@ public static class RankSystem
         await Recalculate(db,id);
         return (await db.One("""
             SELECT json_build_object('rankCode',u.rank_code,'rank',r.data,'reserve',u.reserve,'birthDate',u.birth_date,'parentalConsent',u.parental_consent,
+             'city',u.city,'sponsor',(SELECT json_build_object('id',s.id,'fullName',s.full_name) FROM users s WHERE s.id=u.sponsor_id),
              'totalPoints',greatest(coalesce((SELECT sum(points) FROM point_ledger WHERE user_id=u.id),0),0),
              'totalBadgeWeight',greatest(coalesce((SELECT sum(points) FROM point_ledger WHERE user_id=u.id),0),0),
              'completedMissionTotal',(SELECT count(*) FROM mission_submissions WHERE user_id=u.id AND status='APPROVED'),

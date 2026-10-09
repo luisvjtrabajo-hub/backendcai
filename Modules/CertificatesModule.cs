@@ -27,7 +27,7 @@ public sealed class CertificatesModule : IActionHandler
                 return new { id = reviewId, status = "PENDING", message = "Certificado enviado para revisión." };
             }
             // Bloqueo de fila: un certificado no puede consumirse por dos cuentas.
-            var certificate = await db.One("SELECT json_build_object('id',id,'name',issued_to_name,'email',issued_to_email,'used',used_by_user_id)::text FROM certificates WHERE certificate_number=@number FOR UPDATE", ("number", number));
+            var certificate = await db.One("SELECT json_build_object('id',id,'name',issued_to_name,'email',issued_to_email,'used',used_by_user_id)::text FROM certificates WHERE certificate_number=@number AND kind='COURSE' FOR UPDATE", ("number", number));
             if (certificate is null || certificate.Value.GetProperty("used").ValueKind != System.Text.Json.JsonValueKind.Null)
                 throw new ApiException(409, "CERTIFICATE_UNAVAILABLE", "El certificado no existe o ya fue utilizado.");
             var boundEmail = certificate.Value.GetProperty("email").GetString();
@@ -42,7 +42,7 @@ public sealed class CertificatesModule : IActionHandler
             return new { message = "Cuenta activada.", user = await ModuleQueries.Get(db, "api_users", actor.Id) };
         }
         actor.Admin();
-        if (r.Action == "certificates.list") return await ModuleQueries.Page(db, r, "api_certificates");
+        if (r.Action == "certificates.list") return await ModuleQueries.PageProjected(db,r,"api_certificates","TRUE","v.*,(SELECT kind FROM certificates WHERE id=v.id) AS kind,(SELECT file_id FROM certificates WHERE id=v.id) AS \"fileId\"");
         if (r.Action == "certificateReviews.list")
         {
             var status = r.Choice("status", "PENDING", "PENDING", "APPROVED", "REJECTED");
@@ -52,8 +52,15 @@ public sealed class CertificatesModule : IActionHandler
         {
             var id = Guid.NewGuid();
             var email = r.Optional("issuedToEmail", 254);
-            await db.Execute("INSERT INTO certificates(id,certificate_number,issued_to_name,issued_to_email,created_by_user_id) VALUES(@id,@number,@name,@email,@actor)",
-                ("id", id), ("number", r.Required("certificateNumber",100).ToUpperInvariant()), ("name", r.Optional("issuedToName",160)), ("email", email is null ? null : AuthModule.Email(email)), ("actor", actor.Id));
+            var kind=r.Choice("kind","COURSE","COURSE","MILESTONE","ARMOR");
+            Guid? file=null;
+            if(r.File is not null)
+            {
+                file=await FilesModule.Store(r,actor,db,ct,"MISSION_EVIDENCE");
+                if(await db.Count("SELECT count(*) FROM files WHERE id=@id AND content_type='application/pdf'",("id",file))==0) throw ApiException.Invalid("El certificado adjunto debe ser PDF.");
+            }
+            await db.Execute("INSERT INTO certificates(id,certificate_number,issued_to_name,issued_to_email,created_by_user_id,kind,file_id) VALUES(@id,@number,@name,@email,@actor,@kind,@file)",
+                ("id", id), ("number", r.Required("certificateNumber",100).ToUpperInvariant()), ("name", r.Optional("issuedToName",160)), ("email", email is null ? null : AuthModule.Email(email)), ("actor", actor.Id),("kind",kind),("file",file));
             await ModuleQueries.Audit(db, actor, r.Action, id);
             return await ModuleQueries.Get(db, "api_certificates", id);
         }

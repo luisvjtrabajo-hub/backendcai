@@ -35,6 +35,7 @@ builder.Services.AddSingleton<CertificatesModule>();
 builder.Services.AddSingleton<IActionHandler>(services => services.GetRequiredService<CertificatesModule>());
 builder.Services.AddSingleton<IActionHandler,MissionsModule>();
 builder.Services.AddSingleton<IActionHandler,RanksModule>();
+builder.Services.AddSingleton<IActionHandler,LearningModule>();
 builder.Services.AddHostedService<ActivityMonitor>();
 builder.Services.AddSingleton<IActionHandler,ReportsModule>();
 builder.Services.AddSingleton<IActionHandler,FilesModule>();

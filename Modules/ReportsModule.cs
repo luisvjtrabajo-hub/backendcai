@@ -14,11 +14,19 @@ public sealed class ReportsModule : IActionHandler
         if (r.Action == "sectReports.list")
         {
             var status = r.Choice("status","PENDING","PENDING","APPROVED","REJECTED");
-            return await ModuleQueries.Page(db,r,"api_sect_reports", user.IsAdmin ? "status=@status" : "status=@status AND \"reportedByUserId\"=@user",
+            return await ModuleQueries.PageProjected(db,r,"api_sect_reports", user.IsAdmin ? "status=@status" : "status=@status AND \"reportedByUserId\"=@user",
+                "v.*,(SELECT latitude FROM sect_reports WHERE id=v.id) AS latitude,(SELECT longitude FROM sect_reports WHERE id=v.id) AS longitude",
                 user.IsAdmin ? [("status",status)] : [("status",status),("user",user.Id)]);
         }
         if (r.Action == "sectReports.create")
         {
+            if(!user.IsAdmin)
+            {
+                var profile=await RankSystem.Profile(db,user.Id,true);
+                if(profile.GetProperty("reserve").GetBoolean() || profile.GetProperty("level").GetInt32()<2) throw ApiException.Forbidden();
+                if(profile.GetProperty("birthDate").ValueKind==System.Text.Json.JsonValueKind.Null) throw ApiException.Invalid("Completa tu fecha de nacimiento antes de registrar una ficha.");
+                if(DateOnly.Parse(profile.GetProperty("birthDate").GetString()!)>DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-18)) throw ApiException.Forbidden();
+            }
             var id = Guid.NewGuid();
             await db.Execute("INSERT INTO sect_reports(id,sect_name,location_description,reference_note,reported_by_user_id) VALUES(@id,@name,@location,@note,@user)",
                 ("id",id),("name",r.Required("sectName",180)),("location",r.Required("locationDescription",1000)),("note",r.Required("referenceNote",4000)),("user",user.Id));

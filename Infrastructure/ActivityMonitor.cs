@@ -15,11 +15,14 @@ public sealed class ActivityMonitor(NpgsqlDataSource source, ILogger<ActivityMon
                 await using var cmd = source.CreateCommand("""
                     WITH activity AS (SELECT u.id,greatest(coalesce(max(s.occurred_at) FILTER(WHERE s.status='APPROVED'),u.created_at),u.activity_resumed_at) AS last_at
                      FROM users u LEFT JOIN mission_submissions s ON s.user_id=u.id WHERE u.role='SOLDADO_ACTIVE' GROUP BY u.id)
+                    DELETE FROM activity_alerts a USING activity WHERE a.user_id=activity.id AND activity.last_at>now()-interval '60 days';
+                    WITH activity AS (SELECT u.id,greatest(coalesce(max(s.occurred_at) FILTER(WHERE s.status='APPROVED'),u.created_at),u.activity_resumed_at) AS last_at
+                     FROM users u LEFT JOIN mission_submissions s ON s.user_id=u.id WHERE u.role='SOLDADO_ACTIVE' GROUP BY u.id)
                     INSERT INTO activity_alerts(user_id,last_mission_at,days_inactive)
                     SELECT id,last_at,extract(day FROM now()-last_at)::int FROM activity WHERE last_at<=now()-interval '60 days'
                     ON CONFLICT(user_id) DO UPDATE SET last_mission_at=excluded.last_mission_at,days_inactive=excluded.days_inactive;
                     UPDATE users SET reserve=true WHERE role='SOLDADO_ACTIVE' AND id IN(SELECT user_id FROM activity_alerts WHERE days_inactive>=120);
-                    DELETE FROM activity_alerts a WHERE EXISTS(SELECT 1 FROM mission_submissions s WHERE s.user_id=a.user_id AND s.status='APPROVED' AND s.occurred_at>now()-interval '60 days');
+                    DELETE FROM activity_alerts a WHERE NOT EXISTS(SELECT 1 FROM users u WHERE u.id=a.user_id AND u.role='SOLDADO_ACTIVE');
                     """);
                 await cmd.ExecuteNonQueryAsync(stoppingToken);
             }

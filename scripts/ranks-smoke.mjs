@@ -20,6 +20,8 @@ async function call(action,data={},token,expected=200,file) {
 const catalog=JSON.parse(readFileSync(new URL('../catalog/ranks-missions.json',import.meta.url),'utf8'));
 const admin=await call('auth.login',{email:process.env.TEST_ADMIN_EMAIL,password:process.env.TEST_ADMIN_PASSWORD});
 const at=admin.accessToken;
+const testExams={ 'FOR-03':Array.from({length:20},(_,i)=>`Pregunta de prueba ${i+1}`), CREDO:['Pregunta de prueba'], SACRAMENTOS:['Pregunta de prueba'], VIDA:['Pregunta de prueba'], ORACION:['Pregunta de prueba'] };
+await call('learning.update',{exams:testExams,courseUrl:'https://example.com/course',waitingGroupUrl:'https://example.com/wait'},at);
 sql(`UPDATE users SET role='SOLDADO_INACTIVE' WHERE full_name LIKE 'Rank test %'; UPDATE users SET rank_code='POSTULANTE' WHERE id=${q(admin.user.id)};`);
 await call('missions.create',{title:'Unsafe field minimum',description:'Field cannot start at Postulante',evidenceRequirement:'Written record',missionType:'OPERACIONAL',minimumRankCode:'POSTULANTE'},at,400);
 const ranks=await call('ranks.get',{},at);
@@ -40,7 +42,7 @@ await call('profile.update',{birthDate:'1980-01-01'},u.token,400);
 const reportData={submissionNote:'Bitácora completa: actividad, objeción, respuesta y resultado verificados.',occurredAt:new Date().toISOString(),respectConfirmed:true,privacyConfirmed:true};
 const png=new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8H0AAAAASUVORK5CYII=','base64')],{type:'image/png'});
 const pdf=new Blob(['%PDF-1.4\nTest signed act fixture\n%%EOF'],{type:'application/pdf'});
-async function submit(code,who=u,extra={},file) {const m=missions.get(code);await call('missions.assign',{id:m.id},who.token);return call('submissions.create',{...reportData,missionId:m.id,...extra},who.token,200,file);}
+async function submit(code,who=u,extra={},file) {const m=missions.get(code);await call('missions.assign',{id:m.id},who.token);return call('submissions.create',{...reportData,missionId:m.id,...(['FOR-03','FOR-04'].includes(code) ? {examAnswers:testExams[code==='FOR-03' ? code : extra.moduleCode].map(()=> 'Respuesta de prueba revisable')} : {}),...extra},who.token,200,file);}
 async function approve(s,extra={}) {return call('submissions.review',{id:s.id,status:'APPROVED',requirementsVerified:true,...extra},at);}
 const first=await submit('PRX-01');
 await call('submissions.review',{id:first.id,status:'APPROVED'},at,400);
@@ -107,6 +109,7 @@ const minorCatalog=await call('missions.list',{pageSize:100},minor.token);
 verify(minorCatalog.items.every(m=>/^(FOR|VIG|HOS)-/.test(m.rules.code)),true,'Minor catalog limited to Formation, Vigilia and Hospitality');
 await call('missions.assign',{id:missions.get('PRX-01').id},minor.token,403);
 await call('missions.assign',{id:missions.get('FOR-01').id},minor.token);
+await call('sectReports.create',{sectName:'Minor fixture',locationDescription:'Public fixture',referenceNote:'Doctrine fixture'},minor.token,403);
 const unknown=await member(null);
 await call('missions.assign',{id:missions.get('FOR-02').id},unknown.token);
 await call('submissions.create',{...reportData,missionId:missions.get('FOR-02').id},unknown.token,400);
@@ -139,6 +142,7 @@ const invitation=await call('evidence.upload',{},commander.token,200,pdf);
 await call('files.get',{id:invitation.id},commander.token,404);
 await approve(await call('submissions.create',{...inviteData,invitationFileId:invitation.id},commander.token));
 await call('milestones.validate',{userId:commander.id,code:'HIT-PRE',requirementsVerified:true,reviewNote:'Missing PRE-03 and PRE-01'},at,400,pdf);
+sql(`INSERT INTO spiritual_records(user_id,kind,day) SELECT ${q(capUser.id)},'PRAYER',(now() AT TIME ZONE 'America/Lima')::date-n FROM generate_series(0,6)n;`);
 const pendingAct=await submit('VIG-01',capUser);
 await call('submissions.review',{id:pendingAct.id,status:'REJECTED',rejectionReason:'DISRESPECT',reviewNote:'Burla documentada'},at);
 verify(sql(`SELECT points FROM point_ledger WHERE source_key='penalty:${pendingAct.id}';`),'-20.00','Disrespect automatically subtracts 20');
@@ -195,4 +199,44 @@ for(const name of ['003_rank_system.sql','004_catalog.sql']) sql(readFileSync(ne
 verify(sql('SELECT count(*) FROM point_ledger;'),before,'Reapplying migrations does not duplicate points');
 verify(sql('SELECT count(*) FROM missions WHERE catalog_code IS NOT NULL;'),'53','Reapplying seed does not duplicate missions');
 verify((await call('progress.get',{},u.token)).rankCode,'SARGENTO_ARMAS','Reapplying migration preserves earned rank');
+// Workbook additions: real filters, configured exams, daily records and stale alerts.
+const workbookMember=await member();
+await call('learning.update',{exams:testExams},workbookMember.token,403);
+await call('learning.update',{exams:testExams,courseUrl:'http://example.com'},at,400);
+await call('profile.update',{birthDate:'1990-01-01',city:'Ciudad auditor?a'},workbookMember.token);
+const filtered=await call('users.list',{city:'Ciudad auditor?a',role:'SOLDADO_ACTIVE'},at);
+verify(filtered.items.map(m=>m.id),[workbookMember.id],'City filter uses real profile data');
+const rankFilter=await call('users.list',{city:'Ciudad auditor?a',rankCode:'MARISCAL'},at);
+verify(rankFilter.total,0,'Rank filters apply before pagination');
+await call('missions.assign',{id:missions.get('FOR-03').id},workbookMember.token);
+await call('learning.update',{exams:{}},at);
+await call('submissions.create',{...reportData,missionId:missions.get('FOR-03').id},workbookMember.token,409);
+await call('learning.update',{exams:testExams},at);
+await call('submissions.create',{...reportData,missionId:missions.get('FOR-03').id,examAnswers:['Solo una respuesta']},workbookMember.token,400);
+const examSubmission=await submit('FOR-03',workbookMember);
+verify(sql(`SELECT jsonb_array_length(details->'exam'->'questions') FROM mission_submissions WHERE id=${q(examSubmission.id)};`),'20','Exam snapshots preserve all twenty questions');
+await call('files.get',{id:examSubmission.id},workbookMember.token,404);
+const limaDay=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Lima'}).format(new Date());
+await call('missions.assign',{id:missions.get('VIG-01').id},workbookMember.token);
+await call('submissions.create',{...reportData,missionId:missions.get('VIG-01').id},workbookMember.token,400);
+for(let n=0;n<7;n++) {const d=new Date(limaDay+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-n);await call('spiritual.record',{kind:'PRAYER',day:d.toISOString().slice(0,10)},workbookMember.token);}
+await call('spiritual.record',{kind:'PRAYER',day:limaDay},workbookMember.token);
+verify((await call('spiritual.list',{},workbookMember.token)).items.length,7,'Duplicate day is idempotent');
+await approve(await submit('VIG-01',workbookMember));
+await call('submissions.create',{...reportData,missionId:missions.get('VIG-01').id},workbookMember.token,409);
+await call('spiritual.record',{kind:'ROSARY',day:limaDay},workbookMember.token);
+await approve(await submit('VIG-06',workbookMember));
+await call('submissions.create',{...reportData,missionId:missions.get('VIG-06').id},workbookMember.token,409);
+const oldActivity=sql(`UPDATE users SET activity_resumed_at=now()-interval '130 days' WHERE id=${q(workbookMember.id)} RETURNING activity_resumed_at;`);
+await call('profile.update',{userId:workbookMember.id,birthDate:'1990-01-01',city:'Ciudad corregida',reviewNote:'Solo cambio de ciudad'},at);
+verify(sql(`SELECT activity_resumed_at FROM users WHERE id=${q(workbookMember.id)};`),oldActivity,'Editing an active profile does not restart inactivity');
+sql(`INSERT INTO activity_alerts(user_id,last_mission_at,days_inactive) VALUES(${q(workbookMember.id)},now()-interval '130 days',130) ON CONFLICT(user_id) DO UPDATE SET days_inactive=130;`);
+const monitorSource=readFileSync(new URL('../Infrastructure/ActivityMonitor.cs',import.meta.url),'utf8');
+const monitorSql=monitorSource.split('source.CreateCommand("""')[1].split('""");')[0];
+sql(monitorSql);
+verify(sql(`SELECT reserve FROM users WHERE id=${q(workbookMember.id)};`),'f','A stale 130-day alert does not reserve a member with fresh activity');
+verify(sql(`SELECT count(*) FROM activity_alerts WHERE user_id=${q(workbookMember.id)};`),'0','Fresh activity removes the stale alert');
+const armor=await call('certificates.create',{certificateNumber:'ARM-'+randomUUID(),issuedToName:'Acta de prueba',kind:'ARMOR'},at,200,pdf);
+verify(sql(`SELECT kind FROM certificates WHERE id=${q(armor.id)};`),'ARMOR','Certificates record their workbook type');
+
 console.log(`OK: ${checks} rank-system checks on the disposable local cai_test database.`);

@@ -19,8 +19,15 @@ public sealed class UsersModule : IActionHandler
         {
             var role = r.Optional("role", 30);
             if (role is not null && !new[] { "SUPER_ADMIN","REGISTRADOR","SOLDADO_PENDING","SOLDADO_ACTIVE","SOLDADO_INACTIVE" }.Contains(role)) throw ApiException.Invalid("Rol inválido.");
-            return await ModuleQueries.PageProjected(db, r, "api_users", role is null ? "TRUE" : "role=@role",
-                "v.*,(SELECT json_build_object('birthDate',u.birth_date,'parentalConsent',u.parental_consent,'reserve',u.reserve,'sponsorId',u.sponsor_id,'formationStartedAt',u.formation_started_at,'legacyRankCode',u.legacy_rank_code) FROM users u WHERE u.id=v.id) AS profile", role is null ? [] : [("role", role)]);
+            var where=role is null ? "TRUE" : "v.role=@role";
+            var args=new List<(string,object?)>(); if(role is not null) args.Add(("role",role));
+            foreach(var (name,column) in new[]{("q","v.\"fullName\""),("city","(SELECT city FROM users WHERE id=v.id)")})
+                if(r.Optional(name,120) is {} text) {where+=$" AND {column} ILIKE @"+name; args.Add((name,"%"+text+"%"));}
+            if(r.Optional("rankCode",30) is {} rank) {where+=" AND v.\"rankCode\"=@rank"; args.Add(("rank",rank));}
+            if(r.Optional("area",80) is {} area) {where+=" AND EXISTS(SELECT 1 FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=v.id AND s.status='APPROVED' AND m.area=@area)";args.Add(("area",area));}
+            if(r.Optional("activity",20) is not null) {var activity=r.Choice("activity","ACTIVE","ACTIVE","RESERVE","INACTIVE_60");where+=activity=="RESERVE" ? " AND EXISTS(SELECT 1 FROM users WHERE id=v.id AND reserve)" : activity=="INACTIVE_60" ? " AND EXISTS(SELECT 1 FROM activity_alerts WHERE user_id=v.id AND days_inactive>=60)" : " AND EXISTS(SELECT 1 FROM users WHERE id=v.id AND NOT reserve)";}
+            return await ModuleQueries.PageProjected(db,r,"api_users",where,
+                "v.*,(SELECT json_build_object('birthDate',u.birth_date,'parentalConsent',u.parental_consent,'reserve',u.reserve,'sponsorId',u.sponsor_id,'formationStartedAt',u.formation_started_at,'legacyRankCode',u.legacy_rank_code,'city',u.city,'lastActivityAt',greatest(u.activity_resumed_at,coalesce((SELECT max(s.occurred_at) FROM mission_submissions s WHERE s.user_id=u.id AND s.status='APPROVED'),u.created_at)),'areas',coalesce((SELECT json_agg(t.area) FROM (SELECT DISTINCT m.area FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=u.id AND s.status='APPROVED')t),'[]'::json)) FROM users u WHERE u.id=v.id) AS profile",[..args]);
         }
         var id = r.Id();
         var user = await db.One("SELECT json_build_object('role',role)::text FROM users WHERE id=@id FOR UPDATE", ("id", id)) ?? throw ApiException.Missing();

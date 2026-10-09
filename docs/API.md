@@ -1,5 +1,30 @@
 # Contrato Single-Endpoint
 
+## Funciones del XLSX añadidas en la migración 009
+
+| Acción | Permiso | Datos y respuesta |
+| --- | --- | --- |
+| `learning.get` | Autenticado, también pendiente | `{courseUrl, waitingGroupUrl, exams}`; los cuestionarios vacíos aún no están configurados. |
+| `learning.update` | Admin | `courseUrl?`, `waitingGroupUrl?`, `exams`: objeto con arrays de preguntas en FOR-03/CREDO/SACRAMENTOS/VIDA/ORACION; hasta 40 preguntas de 1000 caracteres, FOR-03 al menos 20. URLs HTTPS. |
+| `spiritual.record` | Activo/admin, sin reserva | `kind=PRAYER/ROSARY`, `day=YYYY-MM-DD`: últimos 31 días, sin fechas futuras en Lima; repetición del mismo día es idempotente. |
+| `spiritual.list` | Activo/admin | `{items:[{kind,day}]}`: registros privados del propio miembro. |
+
+`submissions.create` para FOR-03/FOR-04 requiere `examAnswers`, array de respuestas
+no vacías de hasta 2000 caracteres por pregunta. Se conserva copia del examen en
+`report.details.exam` para revisión administrativa; no es visible en el historial
+del soldado. VIG-01 exige siete registros consecutivos de oración hasta la fecha
+reportada; VIG-06 un rosario de la semana. Cada período solo se acredita una vez.
+
+`users.list` admite `q`, `rankCode`, `city`, `area` y
+`activity=ACTIVE/RESERVE/INACTIVE_60`, además de rol y paginación. Filtra en servidor.
+`profile.update` admite `city` de hasta 120 caracteres. `progress.get` devuelve
+`city`, `sponsor:{id,fullName}` y los puntos por área existentes. Una edición del
+perfil activo no reinicia su plazo de inactividad; reincorporar desde reserva sí.
+
+`certificates.create` admite `kind=COURSE/MILESTONE/ARMOR` y un PDF opcional en
+`file`. `certificates.list` incluye `kind` y `fileId`. Solo un certificado COURSE
+habilita la activación; ninguno reemplaza la validación de los hitos.
+
 Todas las acciones usan `POST /api`. Enviar JSON `{ "action": "nombre.acción", "data": { ... } }`. Todas salvo `auth.register` y `auth.login` requieren `Authorization: Bearer <accessToken>`.
 
 No existe una ruta HTTP por acción. `GET /healthz` se reserva para la plataforma de despliegue.
@@ -85,7 +110,7 @@ const response = await fetch(`${API}/api`, {
 });
 ```
 
-Se requiere fecha de nacimiento registrada. Sin archivo o enlace, las misiones que admiten bitácora necesitan al menos 30 caracteres. `honorReport` aplica únicamente en VIG-02/03/05 y nunca genera un hito verificado. `evidenceUrl` debe usar HTTPS. `recordingIncluded=true` exige `recordingConsent=true`.
+Se requiere fecha de nacimiento registrada. Sin archivo o enlace, las misiones que admiten bitácora necesitan al menos 30 caracteres. `honorReport` está disponible en el catálogo excepto FOR-03/FOR-04/CAR-01 y nunca genera un hito verificado; VIG-02/03/05 lo aplican automáticamente sin archivo ni enlace. `evidenceUrl` debe usar HTTPS. `recordingIncluded=true` exige `recordingConsent=true`.
 
 Campo requiere `companionId` de otro miembro activo, `endedAt` con zona, `safeFieldConfirmed=true`, `noVulnerableTargets=true`. El compañero es opcional en otras actividades, para acreditar trabajo en equipo. FOR-04 requiere `moduleCode`: `CREDO`/`SACRAMENTOS`/`VIDA`/`ORACION`. VIG-05 requiere `linkedMissionId`. CAR-01 requiere `sectReportId` propio aprobado con coordenadas y fotografía. DEB-04 y EST-05 requieren `invitationFileId`: cargar antes PDF con `evidence.upload`. `mentionsMinors` marca revisión especial.
 

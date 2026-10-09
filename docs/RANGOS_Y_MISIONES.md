@@ -25,15 +25,15 @@ La asignación no exige archivo y se conserva entre sesiones. El reporte admite 
 
 Los puntos se registran en `point_ledger`, con claves que impiden pagos repetidos y bloqueo transaccional por miembro. Los topes se calculan por mes de realización en **America/Lima**. Incluyen los puntos de misión, calidad, equipo y primicia; constancia, hitos y ascensos se registran separadamente. La calidad excelente agrega 20%; equipo agrega 15 cuando el compañero es un apadrinado de rango inferior; primicia agrega hasta 25 a una CAR-01 vinculada a una ficha nueva aprobada, sin premiar la misma ficha dos veces. El tope puede reducir un bono. Constancia agrega 25 tras cuatro semanas consecutivas validadas, como máximo una vez cada 28 días. No caducan puntos.
 
-VIG-02, VIG-03 y VIG-05 admiten honor: factor 0,5, con decimales. Sin archivo ni enlace se aplica automáticamente ese factor. Un reporte pendiente no da puntos: la aceptación bajo palabra de honor se realiza por revisión, siguiendo la definición precisa de «Economia de puntos», fila 30.
+El catálogo admite honor con factor 0,5 y decimales, excepto FOR-03/FOR-04 y CAR-01, que requieren evidencia estructural en la plataforma. VIG-02, VIG-03 y VIG-05 lo aplican automáticamente sin archivo ni enlace. Las demás misiones aceptan bitácoras verificables o una declaración explícita de honor. Un reporte pendiente no da puntos: la aceptación bajo palabra de honor se realiza por revisión, siguiendo la definición precisa de «Economia de puntos», fila 30.
 
 ## Hitos
 
 HIT-DOM se comprueba con PRX-01 y PRX-02; HIT-PROX con PRX-03 y CAR-01; HIT-FUN con FOR-03 y los cuatro módulos CREDO, SACRAMENTOS, VIDA y ORACION. Se generan al aprobar las misiones y otorgan sus puntos una sola vez.
 
-Los otros hitos necesitan PDF firmado, nota y validación administrativa. Ingreso exige 30 días, entrevista y referencia de otro miembro activo. Armadura comprueba tres meses consecutivos y exige declarar examen y liderazgo verificados. Encomienda exige tres EST-02 y encomienda activa. Cátedra exige PRE-03 y PRE-01. Campaña exige tres DEB-04 y verificar lugares distintos. Gran Debate exige DEB-06 y EST-03. Elección exige decisión del Capítulo y EST-04 como evidencia de obra fundada y sostenida.
+Los otros hitos necesitan PDF firmado, nota y validación administrativa. Ingreso exige 30 días, entrevista y referencia de otro miembro activo. Armadura comprueba tres meses consecutivos y exige declarar examen y liderazgo verificados. Encomienda exige tres EST-02 y encomienda activa. Cátedra exige PRE-03 y PRE-01. Campaña exige tres DEB-04 y verificar lugares distintos. Gran Debate exige DEB-06 y acta del Capítulo, sin imponer EST-03 como misión adicional. Elección exige decisión del Capítulo y obra fundada y sostenida verificada en el acta, sin imponer EST-04 como única prueba.
 
-**El libro no incluye preguntas, respuestas ni criterios de calificación de los exámenes.** Se registran sus resultados mediante evidencia y revisión; no se inventó un banco de preguntas ni un motor de evaluación automática. Del mismo modo, invitaciones, consentimiento, meses de catequesis, duración de servicio, encomiendas, métricas y actas requieren verificación humana. El validador debe revisar la evidencia concreta del catálogo antes de marcar los requisitos como cumplidos.
+**El libro no incluye preguntas, respuestas ni criterios de calificación de los exámenes.** El administrador configura preguntas y los miembros responden dentro de la aplicación; se conserva una copia del cuestionario y sus respuestas en el reporte, y la aprobación requiere revisión humana. Sin preguntas configuradas no se admite el examen. El usuario confirmó que todavía no tiene ese contenido: no se inventó un banco de preguntas ni un motor de evaluación automática. Del mismo modo, invitaciones, consentimiento, meses de catequesis, duración de servicio, encomiendas, métricas y actas requieren verificación humana. El validador debe revisar la evidencia concreta del catálogo antes de marcar los requisitos como cumplidos.
 
 ## Salvaguardas
 
@@ -69,3 +69,5 @@ Con `Database__AutoMigrate=true` se aplican los scripts nuevos al desplegar. El 
 Las misiones operacionales antiguas se marcan como de campo y requieren como mínimo Compañero de Armas; no pueden eludir acompañamiento/horario por haber sido creadas antes del Excel. Las propias de campo tampoco admiten Postulante como rango mínimo.
 
 El panel de administración del dashboard permite gestionar nacimiento, consentimiento parental, padrino, reserva, actas y conducta. Misiones muestra puntos, requisitos, estados y revisión real; Sectas permite moderar fichas y agregar coordenadas. El mapa usa únicamente fichas aprobadas con coordenadas y teselas gratuitas de OpenStreetMap.
+
+La revisión detallada y las funciones incorporadas están en [AUDITORIA_XLSX.md](AUDITORIA_XLSX.md). Para despliegues actuales aplicar también las migraciones 005 a 009, en orden.

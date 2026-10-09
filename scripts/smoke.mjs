@@ -150,9 +150,10 @@ verify((await call('history.get', {},ut)).completedMissionTotal === 1, 'Historia
 verify((await call('history.get',{},ut)).history.items.every(s=>!('fileId' in s) && !('submissionNote' in s)),'Historial del soldado no revela evidencias');
 const members = await call('members.list', {},ut);
 verify(!members.items.some(u => u.email || u.passwordHash), 'Directorio sin correos privados');
-const report = await call('sectReports.create', { sectName:`Reporte ${run}`,locationDescription:'Zona de prueba',referenceNote:'Reporte de integración' },ut);
-const ownReports = await call('sectReports.list', {},ut);
-verify(ownReports.items.some(r => r.id === report.id), 'Reportes propios');
+await call('sectReports.create', { sectName:`Reporte ${run}`,locationDescription:'Zona de prueba',referenceNote:'Reporte de integración' },ut,403);
+const report = await call('sectReports.create', { sectName:`Reporte ${run}`,locationDescription:'Zona de prueba',referenceNote:'Reporte de integración' },at);
+const ownReports = await call('sectReports.list', {},at);
+verify(ownReports.items.some(r => r.id === report.id), 'Administrador consulta su reporte; Postulante no registra fichas');
 const otherReports = await call('sectReports.list', {},outsider.accessToken);
 verify(!otherReports.items.some(r => r.id === report.id), 'Privacidad de reportes sin aprobar');
 await call('sectReports.review', { id:report.id,status:'APPROVED' },at);

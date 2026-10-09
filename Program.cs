@@ -57,6 +57,8 @@ app.Use(async (context,next) =>
             PostgresException { SqlState: "23503" } => (400,"INVALID_REFERENCE","El registro relacionado no existe."),
             PostgresException { SqlState: "23514" or "22001" } => (400,"VALIDATION_ERROR","Los datos no cumplen las restricciones."),
             PostgresException { SqlState: "40P01" or "40001" } => (409,"CONCURRENT_CHANGE","Otra operación modificó los datos. Intenta nuevamente."),
+            PostgresException { SqlState: "42703" or "42P01" } => (500,"DATABASE_SCHEMA_MISMATCH","La estructura de la base de datos requiere una actualización. Contacta al administrador."),
+            PostgresException => (500,"DATABASE_QUERY_ERROR","No se pudo consultar la base de datos. Contacta al administrador."),
             NpgsqlException => (503,"DATABASE_UNAVAILABLE","La base de datos no está disponible. Intenta nuevamente."),
             _ => (500,"INTERNAL_ERROR","No se pudo completar la operación.")
         };

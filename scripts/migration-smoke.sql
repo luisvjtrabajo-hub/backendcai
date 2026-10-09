@@ -43,6 +43,25 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM missions WHERE id='00000000-0000-0000-0000-000000000002' AND field_mission AND minimum_rank_code='COMPANERO_ARMAS') THEN RAISE EXCEPTION 'Las misiones operacionales antiguas también requieren las reglas de campo'; END IF;
 END $$;
 SELECT 'OK: sistema de rangos, datos antiguos conservados y migraciones repetibles' AS resultado;
+-- Simulate a database that recorded 003 but lacks the legacy column.
+ALTER TABLE users DROP COLUMN legacy_rank_code;
+\ir ../database/006_users_legacy_rank_code.sql
+DO $$
+BEGIN
+ IF (SELECT legacy_rank_code FROM users LIMIT 1) IS NOT NULL THEN RAISE EXCEPTION 'No inventar un rango histórico perdido'; END IF;
+ IF (SELECT rank_code FROM users LIMIT 1)<>'ESCUDERO' THEN RAISE EXCEPTION 'La reparación alteró el rango actual'; END IF;
+ -- Exercise the same profile columns used by users.list.
+ PERFORM json_build_object('birthDate',u.birth_date,'parentalConsent',u.parental_consent,'reserve',u.reserve,'sponsorId',u.sponsor_id,'formationStartedAt',u.formation_started_at,'legacyRankCode',u.legacy_rank_code) FROM users u;
+END $$;
+UPDATE users SET legacy_rank_code='RECRUTA' WHERE id='00000000-0000-0000-0000-000000000001';
+\ir ../database/006_users_legacy_rank_code.sql
+DO $$
+BEGIN
+ IF (SELECT legacy_rank_code FROM users LIMIT 1)<>'RECRUTA' THEN RAISE EXCEPTION 'La reparación sobrescribió el rango histórico'; END IF;
+ IF (SELECT count(*) FROM schema_migrations WHERE name='006_users_legacy_rank_code.sql')<>1 THEN RAISE EXCEPTION 'La reparación debe registrarse una sola vez'; END IF;
+ IF (SELECT count(*) FROM mission_assignments)<>1 OR (SELECT sum(points) FROM point_ledger)<>1 THEN RAISE EXCEPTION 'La reparación alteró el historial'; END IF;
+END $$;
+SELECT 'OK: columna histórica reparada, consulta de perfil válida y valores conservados al repetir' AS resultado;
 \ir ../database/005_mission_deletion.sql
 UPDATE missions SET deleted_at=now(),publication_state='ARCHIVED' WHERE catalog_code='PRX-01';
 \ir ../database/004_catalog.sql

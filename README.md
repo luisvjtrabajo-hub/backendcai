@@ -122,15 +122,20 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/001_schema.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/002_mission_assignments.sql
 ```
 
-También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql) y [database/005_mission_deletion.sql](database/005_mission_deletion.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
+También debes aplicar [database/003_rank_system.sql](database/003_rank_system.sql), [database/004_catalog.sql](database/004_catalog.sql), [database/005_mission_deletion.sql](database/005_mission_deletion.sql) y [database/006_users_legacy_rank_code.sql](database/006_users_legacy_rank_code.sql), en ese orden. Con `Database__AutoMigrate=true` el despliegue los aplica automáticamente.
 
 ```powershell
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/003_rank_system.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/004_catalog.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/005_mission_deletion.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/006_users_legacy_rank_code.sql
 ```
 
-Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los cinco scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.
+Los scripts son transaccionales y no borran registros. No llevan `CREATE DATABASE`: Render provisiona la base previamente. Con SQL manual, establece `Database__AutoMigrate=false` después de aplicar los seis scripts. Futuras modificaciones deben añadirse como scripts numerados nuevos; el arranque registra las versiones en `schema_migrations` y serializa las migraciones. Los puntos y registros anteriores se conservan; el rango antiguo se archiva en `legacy_rank_code` y el nuevo camino requiere acreditar sus hitos.
+
+Si `users.list` falla con `42703: column u.legacy_rank_code does not exist`, aplica `006_users_legacy_rank_code.sql` o despliega el backend actualizado con migraciones automáticas habilitadas. La migración agrega únicamente la columna faltante y conserva los valores existentes. Una columna nueva queda en `NULL`: no es posible reconstruir el rango histórico usando el rango actual. No borres registros de `schema_migrations` para forzar la repetición de migraciones anteriores.
+
+Los errores de columnas o tablas faltantes responden `DATABASE_SCHEMA_MISMATCH` (HTTP 500); otras consultas PostgreSQL fallidas responden `DATABASE_QUERY_ERROR`. `DATABASE_UNAVAILABLE` (HTTP 503) queda reservado para fallas del proveedor/conexión. El detalle SQL permanece en los logs del servidor, asociado al `traceId`.
 
 En Misiones, los administradores disponen de **Eliminar misión**, con confirmación. La misión se retira del catálogo y bloquea nuevas asignaciones/reportes; conserva las evidencias, el historial y los puntos obtenidos. Las misiones oficiales eliminadas no vuelven a aparecer al reiniciar o importar el catálogo.
 

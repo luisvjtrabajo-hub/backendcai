@@ -11,6 +11,9 @@ guardado por `locations.search`, sin confiar en coordenadas enviadas por el clie
 El punto aparece cuando la cuenta pasa a SOLDADO_ACTIVE. Miembros de la misma ciudad
 comparten un punto con el total de apologetas. Los filtros del directorio se aplican
 en servidor; el dashboard carga todas las páginas y filtra sus ciudades.
+El dashboard de los apologetas muestra su progreso personal. El mapa global y las
+métricas generales se reservan a SUPER_ADMIN y REGISTRADOR; `members.map` y
+`overview.get` exigen permisos administrativos en el backend.
 
 La búsqueda usa [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api)
 con datos de GeoNames. No requiere clave para uso no comercial. Si el uso es comercial,

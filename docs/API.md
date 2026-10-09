@@ -35,7 +35,7 @@ Las respuestas mantienen los objetos usados por React: listas `{ items, total, p
 | --- | --- | --- |
 | `auth.register` | Público | `email`, `password` (8–128 caracteres), `fullName`, `locationId` obligatorio, `activationMode?` (`NONE`/`NUMBER`/`REVIEW`), `certificateNumber?`; multipart con archivo si `REVIEW` |
 | `locations.search` | Público | `q` (2–100 caracteres), `countryCode` ISO de 2 letras; `{items:[{id,city,country,countryCode,region}]}`. Seleccionar `id` como `locationId`; coordenadas verificadas por el backend. |
-| `members.map` | Activo/admin | `country?`, `city?`, `page?`, `pageSize?`; ciudades con coordenadas y `memberCount`, agrupando solo SOLDADO_ACTIVE; sin correos ni datos privados. |
+| `members.map` | Admin | `country?`, `city?`, `page?`, `pageSize?`; ciudades con coordenadas y `memberCount`, agrupando solo SOLDADO_ACTIVE; sin correos ni datos privados. |
 | `auth.login` | Público | `email`, `password` |
 | `auth.me` | Autenticado | `{}`; devuelve usuario actual |
 | `auth.logout` | Autenticado | `{}`; revoca todas sus sesiones |

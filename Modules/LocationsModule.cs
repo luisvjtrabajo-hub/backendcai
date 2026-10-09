@@ -16,7 +16,7 @@ public sealed class LocationsModule(IHttpClientFactory clients, IConfiguration c
         if (r.Action == "members.map")
         {
             if (actor is null) throw ApiException.Forbidden();
-            actor.Active();
+            actor.Admin();
             var (where, args) = Filters(r);
             return await ModuleQueries.Page(db, r, "api_member_locations", where, args);
         }

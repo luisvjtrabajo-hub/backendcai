@@ -45,7 +45,9 @@ try {
   await call('members.map', {}, user.accessToken, 403);
   const before = (await call('members.map', {country:'Chile',city:'Santiago'}, token)).items.find(l=>l.id===locationId)?.memberCount || 0;
   await call('users.activate', {id:user.user.id}, token);
-  const point = (await call('members.map', {country:'chile',city:'santi'}, user.accessToken)).items.find(l=>l.id===locationId);
+  await call('members.map', {}, user.accessToken, 403);
+  await call('overview.get', {}, user.accessToken, 403);
+  const point = (await call('members.map', {country:'chile',city:'santi'}, token)).items.find(l=>l.id===locationId);
   check([point.memberCount,point.latitude,point.longitude], [before+1,-33.45694,-70.64827]);
   check(Object.hasOwn(point,'email'), false);
   check((await call('users.list', {country:'chile',city:'santi',q:uuid}, token)).items.map(u=>u.id), [user.user.id]);
@@ -62,7 +64,7 @@ try {
   const otherId = sql('SELECT id FROM city_locations WHERE provider_id=-1;');
   await call('profile.update', {birthDate:'1990-01-01',locationId:otherId}, user.accessToken);
   check((await call('users.list', {country:'Chile',q:uuid}, token)).total, 0);
-  check((await call('members.map', {country:'Perú',city:'Lima'}, user.accessToken)).items.find(l=>l.id===otherId).memberCount >= 1, true);
+  check((await call('members.map', {country:'Perú',city:'Lima'}, token)).items.find(l=>l.id===otherId).memberCount >= 1, true);
   await call('users.deactivate', {id:user.user.id}, token);
   check((await call('users.list', {country:'Perú',role:'SOLDADO_ACTIVE',q:uuid}, token)).total, 0);
   outage = true;

@@ -45,6 +45,12 @@ async function member(birth='1990-01-01') {
   return {id:u.user.id,token:u.accessToken};
 }
 const reference=await member(); const u=await member();
+const reportedCase=await member();
+sql(`INSERT INTO point_ledger(user_id,source_key,kind,points,description) VALUES(${q(reportedCase.id)},'reported-48','TEST',48,'Reported 48-point case fixture');`);
+const reportedProgress=await call('progress.get',{},reportedCase.token);
+verify([reportedProgress.totalPoints,reportedProgress.rankCode,reportedProgress.nextRank.threshold,reportedProgress.nextMilestone.completed,reportedProgress.entryApproved,reportedProgress.promotionBlockedBySanction],
+  [48,'POSTULANTE',1,false,false,false],'48 points exceed threshold but need Doméstica and validated entry');
+sql(`UPDATE users SET role='SOLDADO_INACTIVE' WHERE id=${q(reportedCase.id)};`);
 await call('profile.update',{birthDate:'1980-01-01'},u.token,400);
 const reportData={submissionNote:'Bitácora completa: actividad, objeción, respuesta y resultado verificados.',occurredAt:new Date().toISOString(),respectConfirmed:true,privacyConfirmed:true};
 const png=new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8H0AAAAASUVORK5CYII=','base64')],{type:'image/png'});
@@ -158,6 +164,7 @@ for(let i=0;i<2;i++) {const s=await submit('VIG-01',capUser);await call('submiss
 const punished=await call('progress.get',{},capUser.token);
 verify([punished.totalPoints,punished.rankCode],[0,'ESCUDERO'],'False evidence removes monthly points and second offense demotes one rank');
 verify(sql(`SELECT rank_ceiling FROM users WHERE id=${q(capUser.id)};`),'3','Sanction prevents instant automatic re-promotion');
+verify(punished.promotionBlockedBySanction,true,'Progress explicitly reports sanctions blocking promotion');
 // Boundary tests: below and at every one of the nine ascending thresholds.
 for(let level=2;level<=10;level++) {
   const b=await member(); const rank=catalog.ranks[level-1]; const previous=catalog.ranks[level-2];

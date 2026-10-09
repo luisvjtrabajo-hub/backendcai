@@ -19,6 +19,13 @@ Fuente: `../../CAI_Sistema_de_Rangos_y_Misiones.xlsx`. Se leyeron las nueve hoja
 
 Se necesita el umbral **y** el hito. El ascenso es secuencial, exige ingreso validado y desde el nivel 4 una HOS validada en los últimos 90 días. El bono de cada ascenso se acredita una sola vez. El rango 10 exige un acta de elección del Capítulo; el Voto de Fidelidad no tiene campos, misión, evidencia propia ni barra de progreso.
 
+Por ejemplo, 48 puntos superan el umbral de Compañero de Armas (1), pero un
+Postulante sigue necesitando HIT-DOM (PRX-01 y PRX-02 con evidencia aprobada) y
+HIT-ING (acta administrativa de ingreso). Activar la cuenta o aprobar un certificado
+no equivale a validar el ingreso. El panel de progreso enumera los requisitos
+pendientes y recibe las actualizaciones de `progress.get` al volver a la ventana;
+también muestra el bloqueo por sanción informado por el backend.
+
 Las 53 misiones conservan código, título, categoría, área, puntos, evidencia, rango mínimo, repetición y tope del Excel. Las misiones de una sola realización no pueden repetirse; FOR-04 acepta exactamente cuatro módulos distintos; VIG-02 una vez al mes. Las repeticiones rechazadas se conservan y la corrección crea otro reporte. Solo puede haber uno pendiente por miembro/misión.
 
 La asignación no exige archivo y se conserva entre sesiones. El reporte admite bitácora, archivo o enlace HTTPS, según lo que verifica el administrador para esa misión. Audio y vídeo se presentan mediante enlaces; los archivos admitidos siguen siendo imágenes/PDF de hasta 5 MB. Los soldados no pueden consultar evidencias, tampoco propias, incluso si tienen rango alto.

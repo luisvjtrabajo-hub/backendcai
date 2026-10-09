@@ -58,6 +58,7 @@ public static class RankSystem
              'nextRank',(SELECT data FROM cai_ranks WHERE level=r.level+1),
              'nextMilestone',(SELECT h.data || CASE WHEN h.code='HIT-GM' THEN jsonb_build_object('requirement','Elección del Capítulo General, trayectoria completa y obra de la Orden fundada y sostenida.') ELSE '{}'::jsonb END || jsonb_build_object('completed',EXISTS(SELECT 1 FROM user_milestones um WHERE um.user_id=u.id AND um.code=h.code)) FROM cai_milestones h WHERE h.level=r.level+1),
              'entryApproved',EXISTS(SELECT 1 FROM user_milestones WHERE user_id=u.id AND code='HIT-ING'),
+             'promotionBlockedBySanction',(r.level<10 AND r.level+1>u.rank_ceiling),
              'hospitalityCurrent',EXISTS(SELECT 1 FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=u.id AND s.status='APPROVED' AND m.catalog_code LIKE 'HOS-%' AND s.occurred_at>=now()-interval '90 days'),
              'pointsByArea',coalesce((SELECT json_agg(t) FROM(SELECT m.area,sum(s.points_awarded) AS points FROM mission_submissions s JOIN missions m ON m.id=s.mission_id WHERE s.user_id=u.id AND s.status='APPROVED' GROUP BY m.area)t),'[]'::json),
              'milestones',coalesce((SELECT json_agg(h.code) FROM user_milestones h WHERE h.user_id=u.id),'[]'::json))::text
